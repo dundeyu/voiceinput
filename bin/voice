@@ -1,0 +1,22 @@
+#!/bin/bash
+# Mac终端语音输入工具 - CLI入口脚本
+
+# 解析脚本真实路径，兼容通过符号链接安装到 PATH 的场景
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+  SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ "$SOURCE" != /* ]] && SOURCE="${SCRIPT_DIR}/${SOURCE}"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# 激活虚拟环境并运行
+if [ ! -f "${PROJECT_ROOT}/venv/bin/activate" ]; then
+  echo "未找到虚拟环境: ${PROJECT_ROOT}/venv"
+  echo "请先运行: python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt"
+  exit 1
+fi
+
+source "${PROJECT_ROOT}/venv/bin/activate"
+exec python3 "${PROJECT_ROOT}/main.py" "$@"

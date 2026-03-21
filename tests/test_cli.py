@@ -1,0 +1,36 @@
+from cli import LIGHT_CYAN, GREEN, make_box, strip_ansi, visible_len, wrap_visible_text
+
+
+def test_visible_len_counts_wide_characters_and_ignores_ansi():
+    assert visible_len("abc") == 3
+    assert visible_len("中文a") == 5
+    assert visible_len("\033[31m中文\033[0m") == 4
+
+
+def test_make_box_pads_body_to_consistent_width():
+    panel = strip_ansi(make_box(["本地离线语音输入", "当前语言 中文"], title=" voiceinput "))
+    lines = panel.splitlines()
+    body_widths = [visible_len(line) for line in lines]
+
+    assert len(set(body_widths)) == 1
+
+
+def test_make_box_uses_unified_border_color_by_default():
+    panel = make_box(["正文"], title=" 标题 ", color=GREEN)
+
+    assert GREEN in panel
+    assert LIGHT_CYAN not in panel
+
+
+def test_make_box_supports_custom_body_border_color():
+    panel = make_box(["正文"], title=" 标题 ", color=GREEN, body_border_color=LIGHT_CYAN)
+
+    assert GREEN in panel
+    assert LIGHT_CYAN in panel
+
+
+def test_wrap_visible_text_wraps_wide_text_without_overflow():
+    wrapped = wrap_visible_text("现在正在测试语音的输入。" * 3, 20)
+
+    assert len(wrapped) > 1
+    assert all(visible_len(line) <= 20 for line in wrapped)

@@ -1,0 +1,45 @@
+{
+  "offline_mode": true,
+  "vad_model_path": "models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch",
+  "model": {
+    "path": "models/FunAudioLLM/Fun-ASR-Nano-2512",
+    "device": "cpu",
+    "default_language": "中文",
+    "supported_languages": [
+      "中文",
+      "英文",
+      "日文"
+    ]
+  },
+  "audio": {
+    "input_sample_rate": 48000,
+    "target_sample_rate": 16000,
+    "channels": 1,
+    "dtype": "float32"
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    "file": "logs/voice_input.log",
+    "console": false
+  },
+  "temp": {
+    "audio_dir": "temp",
+    "audio_filename": "recording.wav"
+  },
+  "filler_words": [
+    "呃",
+    "嗯",
+    "啊",
+    "这个",
+    "就是",
+    "然后",
+    "所以",
+    "其实",
+    "的话"
+  ],
+  "vocabulary_corrections": {
+    "cloud code": "claude code",
+    "open cloud": "openclaw"
+  }
+}
