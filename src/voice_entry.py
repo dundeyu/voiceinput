@@ -12,6 +12,7 @@ from recording_session import (
     should_trigger_preview,
     transcribe_recording,
 )
+from loading_status import format_loading_status
 from runtime_ui import (
     format_idle_preview,
     format_interim_text_block,
@@ -270,7 +271,7 @@ def main():
     )
 
     with cli.show_loading("正在准备运行时...") as update_loading:
-        update_loading("正在初始化运行时...")
+        update_loading(format_loading_status(1, 4, "正在初始化运行时组件..."))
         recorder, processor, asr_engine, temp_audio_path, supported_languages = build_runtime(config, runtime_root)
         preload_model_or_exit(asr_engine.preload, logger, status_callback=update_loading)
 
