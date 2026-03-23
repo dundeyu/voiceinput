@@ -7,6 +7,8 @@
 
 一个面向 macOS 终端的本地离线语音输入工具。按下快捷键开始录音，结束后自动进行语音识别，并将结果复制到系统剪贴板。
 
+![voiceinput screenshot](screenshot.png)
+
 项目目前默认通过全局 `voice` 命令使用，也可以直接运行 `python main.py`。
 
 ## Features
