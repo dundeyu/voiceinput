@@ -19,68 +19,21 @@
 - macOS
 - Python 3.10+
 - 可用麦克风权限
-- 本地 FunASR 模型文件
-- 可选本地 VAD 模型目录
 - 经过验证的 `funasr==1.3.1`
 
 ## Quick Start
 
-### 1. Clone
-
 ```bash
 git clone https://github.com/dundeyu/voiceinput.git
 cd voiceinput
-```
-
-### 2. Create Virtual Environment
-
-```bash
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
-```
-
-开发环境可以改用：
-
-```bash
 pip install -r requirements-dev.txt
-```
-
-当前项目对 `funasr` 的内部实现有少量耦合，因此依赖版本已固定为 `funasr==1.3.1`。如果你想升级 `funasr`，建议先完整跑一遍测试和实际录音验证。
-
-### 3. Prepare Models
-
-默认配置见 [config/settings.yaml](config/settings.yaml)。
-
-- 可选 ASR 本地路径示例：`models/FunAudioLLM/Fun-ASR-Nano-2512`
-- 可选 VAD 本地路径示例：`models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch`
-- 离线模式默认关闭，首次启动时如果本地模型不存在，会自动尝试从 ModelScope 下载
-- 联网下载的模型默认缓存到用户目录：`~/.cache/modelscope/hub/models/`
-- 因此仓库里不要求必须存在 `models/` 目录；只有你想手动维护本地离线模型时才需要
-
-如果你要给别人分发配置，建议从 [config/settings.example.yaml](config/settings.example.yaml) 复制一份为 `config/settings.yaml` 再修改。
-
-可以直接这样生成一份本地配置：
-
-```bash
-cp config/settings.example.yaml config/settings.yaml
-```
-
-### 4. Run
-
-直接运行：
-
-```bash
-source venv/bin/activate
-voice
-```
-
-如果你想按标准 Python 项目方式安装当前仓库：
-
-```bash
 pip install -e .
 voice
 ```
+
+首次启动时如果本地没有模型，程序会自动从 ModelScope 获取并缓存到 `~/.cache/modelscope/hub/models/`。通常不需要先手动准备 `models/` 目录。
 
 ## Global `voice` Command
 
@@ -114,6 +67,23 @@ ln -sf "$(pwd)/bin/voice" /opt/homebrew/bin/voice
 - `[Q]`：退出程序
 
 建议完整说完一句话后再结束录音，识别结果会自动复制到剪贴板。
+
+## Setup Details
+
+默认配置见 [config/settings.yaml](config/settings.yaml)。
+
+- `model.path` 默认留空，表示自动解析默认 ASR 模型
+- `vad_model_path` 默认留空，表示自动解析 VAD 缓存或联网下载
+- 离线模式默认关闭，首次启动更适合保持联网
+- 如果你想完全离线运行，也可以手动把模型放到项目目录或任意绝对路径
+
+如果你要给别人分发配置，建议从 [config/settings.example.yaml](config/settings.example.yaml) 复制一份为 `config/settings.yaml` 再修改：
+
+```bash
+cp config/settings.example.yaml config/settings.yaml
+```
+
+当前项目对 `funasr` 的内部实现有少量耦合，因此依赖版本固定为 `funasr==1.3.1`。如果你想升级 `funasr`，建议先完整跑一遍测试和实际录音验证。
 
 ## Configuration
 
