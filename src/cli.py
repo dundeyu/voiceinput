@@ -163,12 +163,22 @@ def copy_to_clipboard(text: str) -> bool:
 
 def _loading_spinner_worker(initial_text: str, stop_event, status_state=None):
     """在独立进程中刷新加载 spinner，避免被主进程长任务卡住。"""
+    was_visible = True
     for frame in itertools.cycle(["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]):
         if stop_event.is_set():
             break
         text = getattr(status_state, "text", initial_text) if status_state is not None else initial_text
+        is_visible = getattr(status_state, "is_visible", True) if status_state is not None else True
+        if not is_visible:
+            if was_visible:
+                sys.stdout.write("\r\033[K")
+                sys.stdout.flush()
+            was_visible = False
+            time.sleep(0.1)
+            continue
         sys.stdout.write(f"\r{color_text(frame, BLUE, bold=True)} {color_text(text, WHITE)}")
         sys.stdout.flush()
+        was_visible = True
         time.sleep(0.1)
 
 
@@ -289,6 +299,7 @@ class CLI:
             manager = ctx.Manager()
             status_state = manager.Namespace()
             status_state.text = text
+            status_state.is_visible = True
             spinner_runner = ctx.Process(
                 target=_loading_spinner_worker,
                 args=(text, stop_event, status_state),
@@ -299,6 +310,7 @@ class CLI:
             stop_event = threading.Event()
             status_state = type("StatusState", (), {})()
             status_state.text = text
+            status_state.is_visible = True
 
             def _spinner_thread():
                 _loading_spinner_worker(text, stop_event, status_state)
@@ -309,6 +321,7 @@ class CLI:
         def update_status(new_text: str):
             if status_state is not None:
                 status_state.text = new_text
+                status_state.is_visible = "正在尝试联网获取" not in new_text and "正在连接 ModelScope" not in new_text
 
         try:
             yield update_status
