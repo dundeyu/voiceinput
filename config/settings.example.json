@@ -1,5 +1,5 @@
 {
-  "offline_mode": true,
+  "offline_mode": false,
   "vad_model_path": "models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch",
   "model": {
     "path": "models/FunAudioLLM/Fun-ASR-Nano-2512",

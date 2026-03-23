@@ -127,7 +127,7 @@ ln -sf "$(pwd)/bin/voice" /opt/homebrew/bin/voice
 
 ```json
 {
-  "offline_mode": true,
+  "offline_mode": false,
   "vad_model_path": "models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch",
   "model": {
     "path": "models/FunAudioLLM/Fun-ASR-Nano-2512",
@@ -158,7 +158,7 @@ ln -sf "$(pwd)/bin/voice" /opt/homebrew/bin/voice
 
 常见配置项：
 
-- `offline_mode`：是否禁止联网下载模型
+- `offline_mode`：是否禁止联网下载模型，默认关闭，首次启动更适合保持联网
 - `vad_model_path`：本地 VAD 模型路径，默认位于项目 `models/` 目录下
 - `model.path`：ASR 模型路径
 - `model.device`：运行设备，如 `cpu`
