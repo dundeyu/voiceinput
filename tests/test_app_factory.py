@@ -20,8 +20,18 @@ def test_load_config_reads_json(tmp_path):
     assert config["model"]["path"] == "models/demo"
 
 
+def test_load_config_reads_yaml(tmp_path):
+    config_path = tmp_path / "settings.yaml"
+    config_path.write_text("offline_mode: true\nmodel:\n  path: models/demo\n", encoding="utf-8")
+
+    config = load_config(config_path)
+
+    assert config["offline_mode"] is True
+    assert config["model"]["path"] == "models/demo"
+
+
 def test_load_config_accepts_yaml_comments(tmp_path):
-    config_path = tmp_path / "settings.json"
+    config_path = tmp_path / "settings.yaml"
     config_path.write_text(
         '# model.path 留空时自动解析默认 ASR 模型\noffline_mode: false\nmodel:\n  path: ""\n',
         encoding="utf-8",
@@ -135,9 +145,9 @@ def test_build_runtime_uses_default_asr_model_id_when_path_is_blank():
 def test_resolve_config_path_prefers_local_settings_json(tmp_path):
     config_dir = tmp_path / "config"
     config_dir.mkdir()
-    settings_path = config_dir / "settings.json"
+    settings_path = config_dir / "settings.yaml"
     settings_path.write_text('{"offline_mode": false}', encoding="utf-8")
-    (config_dir / "settings.example.json").write_text('{"offline_mode": true}', encoding="utf-8")
+    (config_dir / "settings.example.yaml").write_text('offline_mode: true\n', encoding="utf-8")
 
     resolved_path, used_example = resolve_config_path(tmp_path, working_dir=tmp_path)
 
@@ -145,16 +155,16 @@ def test_resolve_config_path_prefers_local_settings_json(tmp_path):
     assert used_example is False
 
 
-def test_resolve_config_path_prefers_working_directory_settings_json(tmp_path):
+def test_resolve_config_path_prefers_working_directory_settings_yaml(tmp_path):
     project_root = tmp_path / "project"
     working_dir = tmp_path / "workspace"
     (project_root / "config").mkdir(parents=True)
     (working_dir / "config").mkdir(parents=True)
 
-    repo_settings = project_root / "config" / "settings.json"
-    cwd_settings = working_dir / "config" / "settings.json"
-    repo_settings.write_text('{"offline_mode": false}', encoding="utf-8")
-    cwd_settings.write_text('{"offline_mode": true}', encoding="utf-8")
+    repo_settings = project_root / "config" / "settings.yaml"
+    cwd_settings = working_dir / "config" / "settings.yaml"
+    repo_settings.write_text("offline_mode: false\n", encoding="utf-8")
+    cwd_settings.write_text("offline_mode: true\n", encoding="utf-8")
 
     resolved_path, used_example = resolve_config_path(project_root, working_dir=working_dir)
 
@@ -165,8 +175,8 @@ def test_resolve_config_path_prefers_working_directory_settings_json(tmp_path):
 def test_load_runtime_config_falls_back_to_example_file(tmp_path):
     config_dir = tmp_path / "config"
     config_dir.mkdir()
-    example_path = config_dir / "settings.example.json"
-    example_path.write_text('{"offline_mode": true, "model": {"path": "models/demo"}}', encoding="utf-8")
+    example_path = config_dir / "settings.example.yaml"
+    example_path.write_text("offline_mode: true\nmodel:\n  path: models/demo\n", encoding="utf-8")
 
     config, resolved_path, used_example, runtime_root = load_runtime_config(tmp_path, working_dir=tmp_path)
 
@@ -182,8 +192,8 @@ def test_resolve_runtime_root_uses_working_directory_for_installed_config(tmp_pa
     install_data_root = tmp_path / "venv"
     install_config_dir = install_data_root / "config"
     install_config_dir.mkdir(parents=True)
-    config_path = install_config_dir / "settings.example.json"
-    config_path.write_text('{"offline_mode": true}', encoding="utf-8")
+    config_path = install_config_dir / "settings.example.yaml"
+    config_path.write_text("offline_mode: true\n", encoding="utf-8")
 
     with patch("voice_entry.get_install_config_dir", return_value=install_config_dir):
         runtime_root = resolve_runtime_root(config_path, project_root, working_dir=working_dir)
@@ -191,14 +201,14 @@ def test_resolve_runtime_root_uses_working_directory_for_installed_config(tmp_pa
     assert runtime_root == working_dir
 
 
-def test_load_runtime_config_reads_installed_settings_json(tmp_path):
+def test_load_runtime_config_reads_installed_settings_yaml(tmp_path):
     project_root = tmp_path / "project"
     working_dir = tmp_path / "workspace"
     install_data_root = tmp_path / "venv"
     install_config_dir = install_data_root / "config"
     install_config_dir.mkdir(parents=True)
-    settings_path = install_config_dir / "settings.json"
-    settings_path.write_text('{"offline_mode": true, "model": {"path": "models/demo"}}', encoding="utf-8")
+    settings_path = install_config_dir / "settings.yaml"
+    settings_path.write_text("offline_mode: true\nmodel:\n  path: models/demo\n", encoding="utf-8")
 
     with patch("voice_entry.get_install_config_dir", return_value=install_config_dir):
         config, resolved_path, used_example, runtime_root = load_runtime_config(
@@ -210,3 +220,15 @@ def test_load_runtime_config_reads_installed_settings_json(tmp_path):
     assert used_example is False
     assert config["offline_mode"] is True
     assert runtime_root == working_dir
+
+
+def test_resolve_config_path_still_accepts_legacy_json(tmp_path):
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    settings_path = config_dir / "settings.json"
+    settings_path.write_text('{"offline_mode": false}', encoding="utf-8")
+
+    resolved_path, used_example = resolve_config_path(tmp_path, working_dir=tmp_path)
+
+    assert resolved_path == settings_path
+    assert used_example is False

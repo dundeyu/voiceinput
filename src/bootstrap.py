@@ -27,7 +27,7 @@ def preload_model_or_exit(
         return
 
     logger.error("模型预加载失败，请检查模型路径、离线资源和VAD配置。")
-    print("模型预加载失败，请检查 config/settings.json 中的模型路径与离线资源后重试。")
+    print("模型预加载失败，请检查 config/settings.yaml 中的模型路径与离线资源后重试。")
     for detail in failure_details or []:
         print(detail)
     sys.exit(1)
