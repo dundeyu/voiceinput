@@ -241,7 +241,13 @@ class CLI:
         self.print_welcome()
         self.keyboard.listen(self._handle_key)
 
-    def show_result(self, text: str, is_success: bool = True, status_note: str | None = None):
+    def show_result(
+        self,
+        text: str,
+        is_success: bool = True,
+        status_note: str | None = None,
+        status_details: List[str] | None = None,
+    ):
         """显示识别结果。"""
         if is_success:
             self.last_result = text
@@ -253,8 +259,15 @@ class CLI:
                 wrapped = wrap_visible_text(raw_line, result_content_width)
                 result_lines.extend(color_text(line, YELLOW, bold=True) for line in wrapped)
             lines = [""] + result_lines
+            status_parts = []
             if status_note:
-                lines.extend(["", color_text(status_note, CYAN, dim=True) + "  " + color_text(f"{char_count} 字符", dim=True)])
+                status_parts.append(status_note)
+            if status_details:
+                status_parts.extend(status_details)
+            else:
+                status_parts.append(f"{char_count} 字符")
+            if status_parts:
+                lines.extend(["", "  ".join(color_text(part, CYAN, dim=True) for part in status_parts)])
             else:
                 lines.extend(["", color_text(f"{char_count} 字符", dim=True)])
             sys.stdout.write(make_box(lines, title=" 识别结果 ", color=GREEN) + "\n")

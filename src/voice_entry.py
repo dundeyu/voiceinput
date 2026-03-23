@@ -18,6 +18,7 @@ from runtime_ui import (
     format_recording_header,
     get_audio_volume_bar,
 )
+from usage_stats import UsageStatsStore
 
 
 SOURCE_ROOT = Path(__file__).resolve().parent.parent
@@ -84,6 +85,15 @@ def load_runtime_config(project_root: Path, working_dir: Path | None = None) -> 
     return load_config(config_path), config_path, used_example, runtime_root
 
 
+def get_usage_stats_path(config: dict, runtime_root: Path) -> Path:
+    """统计文件默认写入日志目录。"""
+    logging_config = config.get("logging", {})
+    log_file = Path(logging_config.get("file", "logs/voice_input.log"))
+    if not log_file.is_absolute():
+        log_file = runtime_root / log_file
+    return log_file.parent / "usage_stats.json"
+
+
 _config_path, _used_example_config = resolve_config_path(SOURCE_ROOT)
 if _config_path.exists():
     _early_config = load_config(_config_path)
@@ -124,6 +134,7 @@ def main():
     logger = logging.getLogger(__name__)
     logger.info("启动语音输入工具")
     supported_languages = config["model"]["supported_languages"]
+    usage_stats_store = UsageStatsStore(get_usage_stats_path(config, runtime_root))
 
     interim_text = ""
     last_inference_time = 0
@@ -227,7 +238,16 @@ def main():
 
                 if text:
                     if copy_to_clipboard(text):
-                        cli.show_result(text, status_note="已复制到剪贴板")
+                        snapshot = usage_stats_store.record_input(len(text.replace("\n", "")))
+                        cli.show_result(
+                            text,
+                            status_note="已复制到剪贴板",
+                            status_details=[
+                                f"本次：{len(text.replace('\n', ''))}",
+                                f"今日：{snapshot.today_chars}",
+                                f"累计：{snapshot.total_chars}",
+                            ],
+                        )
                     else:
                         cli.show_result(text)
                 else:

@@ -1,4 +1,4 @@
-from cli import LIGHT_CYAN, GREEN, make_box, strip_ansi, visible_len, wrap_visible_text
+from cli import CLI, LIGHT_CYAN, GREEN, make_box, strip_ansi, visible_len, wrap_visible_text
 
 
 def test_visible_len_counts_wide_characters_and_ignores_ansi():
@@ -34,3 +34,17 @@ def test_wrap_visible_text_wraps_wide_text_without_overflow():
 
     assert len(wrapped) > 1
     assert all(visible_len(line) <= 20 for line in wrapped)
+
+
+def test_show_result_appends_usage_stats_to_status_line(capsys):
+    cli = CLI(on_record_toggle=lambda: None, on_language_switch=lambda: "中文", supported_languages=["中文"])
+
+    cli.show_result(
+        "你好世界",
+        status_note="已复制到剪贴板",
+        status_details=["本次：4", "今日：4", "累计：40"],
+    )
+
+    output = strip_ansi(capsys.readouterr().out)
+
+    assert "已复制到剪贴板  本次：4  今日：4  累计：40" in output

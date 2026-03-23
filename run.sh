@@ -8,6 +8,5 @@ cd "$(dirname "$0")"
 export MODELSCOPE_OFFLINE=1
 export HF_HUB_OFFLINE=1
 
-# 激活虚拟环境并运行
-source venv/bin/activate
-python3 main.py
+# 直接执行项目虚拟环境中的解释器，避免目录重命名后 activate 内部路径失效
+exec ./venv/bin/python ./main.py
