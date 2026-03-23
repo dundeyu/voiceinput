@@ -210,6 +210,17 @@ venv/bin/python -m pytest tests
 
 如果你准备公开仓库，建议保留当前的 issue / PR 模板，这会明显改善协作质量和问题收集质量。
 
+## Acknowledgements
+
+本项目站在许多优秀开源组件之上，特别感谢它们的作者和维护者持续投入：
+
+- [FunASR](https://github.com/modelscope/FunASR) 提供核心语音识别能力
+- [ModelScope](https://modelscope.cn/) 提供模型分发与缓存支持
+- [openai-whisper](https://github.com/openai/whisper) 提供 tokenizer 相关能力
+- [PyTorch](https://pytorch.org/) 与 [torchaudio](https://pytorch.org/audio/stable/index.html) 提供底层推理与音频处理基础
+
+没有这些项目的工作，`voiceinput` 不会这么快落地。
+
 ## License
 
 本项目使用 MIT License。详见 [LICENSE](LICENSE)。
