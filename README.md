@@ -28,7 +28,7 @@
 ### 1. Clone
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/dundeyu/voiceinput.git
 cd voiceinput
 ```
 
