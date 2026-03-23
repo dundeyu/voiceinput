@@ -5,7 +5,7 @@ import sysconfig
 from pathlib import Path
 
 from app_factory import build_runtime, load_config
-from bootstrap import apply_offline_env, preload_model_or_exit
+from bootstrap import apply_offline_env, build_preload_failure_details, preload_model_or_exit
 from cli import CLI, copy_to_clipboard
 from recording_session import (
     run_streaming_inference,
@@ -272,8 +272,23 @@ def main():
 
     with cli.show_loading("正在准备运行时...") as update_loading:
         update_loading(format_loading_status(1, 4, "正在初始化运行时组件..."))
-        recorder, processor, asr_engine, temp_audio_path, supported_languages = build_runtime(config, runtime_root)
-        preload_model_or_exit(asr_engine.preload, logger, status_callback=update_loading)
+        recorder, processor, asr_engine, temp_audio_path, supported_languages = build_runtime(
+            config,
+            runtime_root,
+            status_callback=lambda text: update_loading(format_loading_status(1, 4, text)),
+        )
+        preload_model_or_exit(
+            asr_engine.preload,
+            logger,
+            status_callback=update_loading,
+            failure_details=build_preload_failure_details(
+                offline_mode=config.get("offline_mode", False),
+                model_path=asr_engine.model_path,
+                vad_model_path=asr_engine.vad_model_path,
+                use_vad=asr_engine.use_vad,
+                last_error=asr_engine.last_error,
+            ),
+        )
 
     cli.supported_languages = supported_languages
 

@@ -6,16 +6,6 @@ import logging
 from typing import Optional, List
 from contextlib import contextmanager, redirect_stdout, redirect_stderr
 
-# 注册FunASRNano模型 - 需要将fun_asr_nano目录加入sys.path
-# 这是因为model.py中的from ctc import CTC需要相对导入
-import funasr
-funasr_dir = os.path.dirname(funasr.__file__)
-fun_asr_nano_dir = os.path.join(funasr_dir, 'models', 'fun_asr_nano')
-if os.path.exists(fun_asr_nano_dir) and fun_asr_nano_dir not in sys.path:
-    sys.path.insert(0, fun_asr_nano_dir)
-
-from funasr import AutoModel
-from funasr.utils.load_utils import load_audio_text_image_video
 from loading_status import format_loading_status
 from model_download import download_model_from_modelscope
 from text_processing import filter_filler_words, correct_vocabulary
@@ -35,6 +25,30 @@ def suppress_terminal_noise():
     with open(os.devnull, "w", encoding="utf-8") as devnull:
         with redirect_stdout(devnull), redirect_stderr(devnull):
             yield
+
+
+def _ensure_funasr_nano_path() -> None:
+    """按需注册 FunASRNano 相对导入路径。"""
+    import funasr
+
+    funasr_dir = os.path.dirname(funasr.__file__)
+    fun_asr_nano_dir = os.path.join(funasr_dir, "models", "fun_asr_nano")
+    if os.path.exists(fun_asr_nano_dir) and fun_asr_nano_dir not in sys.path:
+        sys.path.insert(0, fun_asr_nano_dir)
+
+
+def _get_auto_model():
+    """延迟导入 AutoModel，减少启动阶段阻塞。"""
+    from funasr import AutoModel
+
+    return AutoModel
+
+
+def _load_audio_for_runtime(audio_path: str, fs: int = 16000):
+    """延迟导入音频加载函数，减少模块级初始化开销。"""
+    from funasr.utils.load_utils import load_audio_text_image_video
+
+    return load_audio_text_image_video(audio_path, fs=fs)
 
 
 class ASREngine:
@@ -63,8 +77,9 @@ class ASREngine:
         self.offline_mode = offline_mode
         self._model = None  # FunASRNano 实例
         self._model_kwargs: dict = {}
-        self._vad_model: Optional[AutoModel] = None
+        self._vad_model = None
         self._is_loaded = False
+        self.last_error: str | None = None
 
     def _resolve_vad_model_path(self) -> str | None:
         """解析最终使用的本地 VAD 模型路径。"""
@@ -83,6 +98,7 @@ class ASREngine:
             return True
 
         try:
+            self.last_error = None
             # 离线模式：设置环境变量禁止网络访问
             if self.offline_mode:
                 os.environ['MODELSCOPE_OFFLINE'] = '1'
@@ -103,32 +119,38 @@ class ASREngine:
                 else:
                     logger.warning(f"本地VAD模型不存在: {self.vad_model_path}")
                     if self.offline_mode:
-                        logger.error("离线模式下无法下载模型，请手动下载VAD模型")
-                        return False
-                    if status_callback:
-                        status_callback(format_loading_status(2, 4, "未找到本地 VAD，正在尝试联网获取..."))
-                    vad_model_to_use = download_model_from_modelscope(
-                        "fsmn-vad",
-                        status_callback=lambda text: status_callback(format_loading_status(2, 4, text))
-                        if status_callback
-                        else None,
-                        label="VAD 模型",
-                    )
-
-                with suppress_terminal_noise():
-                    self._vad_model = AutoModel(
-                        model=vad_model_to_use,
-                        device=self.device,
-                        disable_update=True,
-                        disable_pbar=True,
-                        disable_log=True,
-                        log_level="ERROR",
-                    )
-                logger.info("VAD模型加载完成")
+                        logger.warning("离线模式下未找到 VAD 模型，回退为不使用 VAD 分段。")
+                        if status_callback:
+                            status_callback(format_loading_status(2, 4, "未找到本地 VAD，离线模式下将跳过长音频分段..."))
+                        self._vad_model = None
+                        self.use_vad = False
+                    else:
+                        if status_callback:
+                            status_callback(format_loading_status(2, 4, "未找到本地 VAD，正在尝试联网获取..."))
+                        vad_model_to_use = download_model_from_modelscope(
+                            "fsmn-vad",
+                            status_callback=lambda text: status_callback(format_loading_status(2, 4, text))
+                            if status_callback
+                            else None,
+                            label="VAD 模型",
+                        )
+                if self.use_vad:
+                    with suppress_terminal_noise():
+                        AutoModel = _get_auto_model()
+                        self._vad_model = AutoModel(
+                            model=vad_model_to_use,
+                            device=self.device,
+                            disable_update=True,
+                            disable_pbar=True,
+                            disable_log=True,
+                            log_level="ERROR",
+                        )
+                    logger.info("VAD模型加载完成")
 
             # 使用 FunASRNano.from_pretrained 直接加载 ASR 模型
             # 这比 AutoModel 更稳定，特别是分段处理时
             # 延迟导入以避免模块级别的循环依赖
+            _ensure_funasr_nano_path()
             from funasr.models.fun_asr_nano.model import FunASRNano
 
             logger.info(f"正在加载ASR模型: {self.model_path}")
@@ -161,6 +183,7 @@ class ASREngine:
             logger.info("模型加载完成")
             return True
         except Exception as e:
+            self.last_error = str(e)
             logger.error(f"模型加载失败: {e}")
             return False
 
@@ -207,7 +230,7 @@ class ASREngine:
     def _get_audio_duration(self, audio_path: str) -> float:
         """获取音频时长（秒）"""
         try:
-            speech = load_audio_text_image_video(audio_path, fs=16000)
+            speech = _load_audio_for_runtime(audio_path, fs=16000)
             if speech is None:
                 logger.warning(f"加载音频失败，返回0: {audio_path}")
                 return 0.0
@@ -275,7 +298,7 @@ class ASREngine:
             logger.info(f"VAD检测到 {len(vad_segments)} 个语音段")
 
             # 加载音频
-            speech = load_audio_text_image_video(audio_path, fs=16000)
+            speech = _load_audio_for_runtime(audio_path, fs=16000)
 
             if speech is None:
                 logger.error("加载音频失败")
