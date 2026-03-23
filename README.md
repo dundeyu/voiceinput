@@ -50,7 +50,7 @@ pip install -r requirements-dev.txt
 
 ### 3. Prepare Models
 
-默认配置见 [config/settings.yaml](/Users/donald/Codes/voiceinput/config/settings.yaml)。
+默认配置见 [config/settings.yaml](config/settings.yaml)。
 
 - 可选 ASR 本地路径示例：`models/FunAudioLLM/Fun-ASR-Nano-2512`
 - 可选 VAD 本地路径示例：`models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch`
@@ -58,7 +58,7 @@ pip install -r requirements-dev.txt
 - 联网下载的模型默认缓存到用户目录：`~/.cache/modelscope/hub/models/`
 - 因此仓库里不要求必须存在 `models/` 目录；只有你想手动维护本地离线模型时才需要
 
-如果你要给别人分发配置，建议从 [config/settings.example.yaml](/Users/donald/Codes/voiceinput/config/settings.example.yaml) 复制一份为 `config/settings.yaml` 再修改。
+如果你要给别人分发配置，建议从 [config/settings.example.yaml](config/settings.example.yaml) 复制一份为 `config/settings.yaml` 再修改。
 
 可以直接这样生成一份本地配置：
 
@@ -117,7 +117,7 @@ ln -sf "$(pwd)/bin/voice" /opt/homebrew/bin/voice
 
 ## Configuration
 
-主配置文件是 [config/settings.yaml](/Users/donald/Codes/voiceinput/config/settings.yaml)。
+主配置文件是 [config/settings.yaml](config/settings.yaml)。
 
 一个最小可用示例：
 
