@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from funasr.download.name_maps_from_hub import name_maps_ms
 
@@ -17,6 +18,12 @@ class DownloadProgressState:
 
 def resolve_modelscope_model_id(model_name: str) -> str:
     """将 FunASR 简写模型名映射为 ModelScope 仓库名。"""
+    path = Path(model_name)
+    if len(path.parts) >= 3 and "models" in path.parts:
+        models_index = path.parts.index("models")
+        tail_parts = path.parts[models_index + 1 :]
+        if len(tail_parts) >= 2:
+            return f"{tail_parts[0]}/{tail_parts[1]}"
     return name_maps_ms.get(model_name, model_name)
 
 

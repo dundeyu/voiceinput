@@ -44,6 +44,16 @@ def _get_auto_model():
     return AutoModel
 
 
+def _ensure_whisper_tokenizer_available() -> None:
+    """确保 FunASR 依赖的 whisper tokenizer 可用。"""
+    try:
+        from whisper.tokenizer import get_tokenizer  # noqa: F401
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "缺少 openai-whisper 依赖，请先安装 openai-whisper 后再启动 voice。"
+        ) from exc
+
+
 def _load_audio_for_runtime(audio_path: str, fs: int = 16000):
     """延迟导入音频加载函数，减少模块级初始化开销。"""
     from funasr.utils.load_utils import load_audio_text_image_video
@@ -150,6 +160,7 @@ class ASREngine:
             # 使用 FunASRNano.from_pretrained 直接加载 ASR 模型
             # 这比 AutoModel 更稳定，特别是分段处理时
             # 延迟导入以避免模块级别的循环依赖
+            _ensure_whisper_tokenizer_available()
             _ensure_funasr_nano_path()
             from funasr.models.fun_asr_nano.model import FunASRNano
 

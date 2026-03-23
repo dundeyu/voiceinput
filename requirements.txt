@@ -3,6 +3,7 @@ funasr==1.3.1
 torch>=2.0.0
 torchaudio>=2.0.0
 transformers>=4.0.0
+openai-whisper>=20250625
 sounddevice>=0.4.0
 scipy>=1.10.0
 soundfile>=0.12.1
