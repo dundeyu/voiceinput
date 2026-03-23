@@ -1,4 +1,15 @@
-from cli import CLI, LIGHT_CYAN, GREEN, make_box, strip_ansi, visible_len, wrap_visible_text
+import io
+
+from cli import (
+    CLI,
+    GREEN,
+    LIGHT_CYAN,
+    _loading_spinner_worker,
+    make_box,
+    strip_ansi,
+    visible_len,
+    wrap_visible_text,
+)
 
 
 def test_visible_len_counts_wide_characters_and_ignores_ansi():
@@ -48,3 +59,32 @@ def test_show_result_appends_usage_stats_to_status_line(capsys):
     output = strip_ansi(capsys.readouterr().out)
 
     assert "已复制到剪贴板  本次：4  今日：4  累计：40" in output
+
+
+def test_loading_spinner_worker_clears_line_when_status_is_hidden(monkeypatch):
+    class FakeEvent:
+        def __init__(self):
+            self._set = False
+
+        def is_set(self):
+            return self._set
+
+        def set(self):
+            self._set = True
+
+    class FakeState:
+        text = "未找到本地 ASR，正在尝试联网获取..."
+        is_visible = False
+
+    stop_event = FakeEvent()
+    output = io.StringIO()
+    monkeypatch.setattr("sys.stdout", output)
+
+    def fake_sleep(_seconds):
+        stop_event.set()
+
+    monkeypatch.setattr("time.sleep", fake_sleep)
+
+    _loading_spinner_worker("正在处理...", stop_event, FakeState())
+
+    assert "\r\033[K" in output.getvalue()
