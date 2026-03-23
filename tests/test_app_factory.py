@@ -2,7 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from app_factory import DEFAULT_ASR_MODEL_ID, DEFAULT_VAD_MODEL_PATH, build_runtime, load_config
+from app_factory import DEFAULT_ASR_MODEL_ID, build_runtime, load_config
 from voice_entry import (
     load_runtime_config,
     resolve_config_path,
@@ -100,7 +100,7 @@ def test_build_runtime_wires_components_from_config():
         default_language="中文",
         filler_words=["嗯"],
         vocabulary_corrections={"cloud code": "claude code"},
-        vad_model_path=Path("/project") / DEFAULT_VAD_MODEL_PATH,
+        vad_model_path=None,
         offline_mode=True,
     )
 
@@ -140,6 +140,7 @@ def test_build_runtime_uses_default_asr_model_id_when_path_is_blank():
         build_runtime(config, Path("/project"))
 
     assert asr_cls.call_args.kwargs["model_path"] == DEFAULT_ASR_MODEL_ID
+    assert asr_cls.call_args.kwargs["vad_model_path"] is None
 
 
 def test_resolve_config_path_prefers_local_settings_json(tmp_path):

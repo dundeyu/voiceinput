@@ -16,7 +16,7 @@ assignees: ""
 - Python version:
 - Install method:
 - Run method:
-  `voice` / `python main.py` / `./run.sh`
+  `voice` / `python main.py`
 
 ## Steps To Reproduce
 

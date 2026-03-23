@@ -27,6 +27,21 @@ def resolve_modelscope_model_id(model_name: str) -> str:
     return name_maps_ms.get(model_name, model_name)
 
 
+def get_modelscope_cache_path(model_name: str) -> Path:
+    """返回模型在 ModelScope 默认缓存目录中的路径。"""
+    model_id = resolve_modelscope_model_id(model_name)
+    cache_root = Path.home() / ".cache/modelscope/hub/models"
+    return cache_root / model_id
+
+
+def get_cached_model_path(model_name: str) -> Path | None:
+    """如果模型已在 ModelScope 缓存中，返回缓存路径。"""
+    cache_path = get_modelscope_cache_path(model_name)
+    if cache_path.exists():
+        return cache_path
+    return None
+
+
 def download_model_from_modelscope(model_name: str, status_callback=None, label: str = "模型") -> str:
     """从 ModelScope 下载模型，并在下载期间持续更新状态。"""
     from pathlib import Path

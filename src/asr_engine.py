@@ -7,7 +7,7 @@ from typing import Optional, List
 from contextlib import contextmanager, redirect_stdout, redirect_stderr
 
 from loading_status import format_loading_status
-from model_download import download_model_from_modelscope
+from model_download import download_model_from_modelscope, get_cached_model_path
 from text_processing import filter_filler_words, correct_vocabulary
 
 logger = logging.getLogger(__name__)
@@ -135,15 +135,22 @@ class ASREngine:
                         self._vad_model = None
                         self.use_vad = False
                     else:
-                        if status_callback:
-                            status_callback(format_loading_status(2, 4, "未找到本地 VAD，正在尝试联网获取..."))
-                        vad_model_to_use = download_model_from_modelscope(
-                            "fsmn-vad",
-                            status_callback=lambda text: status_callback(format_loading_status(2, 4, text))
-                            if status_callback
-                            else None,
-                            label="VAD 模型",
-                        )
+                        cached_vad_path = get_cached_model_path("fsmn-vad")
+                        if cached_vad_path is not None:
+                            vad_model_to_use = str(cached_vad_path)
+                            logger.info(f"使用缓存VAD模型: {cached_vad_path}")
+                            if status_callback:
+                                status_callback(format_loading_status(2, 4, "正在加载缓存 VAD 模型..."))
+                        else:
+                            if status_callback:
+                                status_callback(format_loading_status(2, 4, "未找到本地 VAD，正在尝试联网获取..."))
+                            vad_model_to_use = download_model_from_modelscope(
+                                "fsmn-vad",
+                                status_callback=lambda text: status_callback(format_loading_status(2, 4, text))
+                                if status_callback
+                                else None,
+                                label="VAD 模型",
+                            )
                 if self.use_vad:
                     with suppress_terminal_noise():
                         AutoModel = _get_auto_model()
@@ -170,14 +177,20 @@ class ASREngine:
                 if os.path.exists(str(self.model_path)):
                     status_callback(format_loading_status(3, 4, "正在加载本地 ASR 模型..."))
                 else:
-                    status_callback(format_loading_status(3, 4, "未找到本地 ASR，正在尝试联网获取..."))
-                    asr_model_to_use = download_model_from_modelscope(
-                        str(self.model_path),
-                        status_callback=lambda text: status_callback(format_loading_status(3, 4, text))
-                        if status_callback
-                        else None,
-                        label="ASR 模型",
-                    )
+                    cached_asr_path = get_cached_model_path(str(self.model_path))
+                    if cached_asr_path is not None:
+                        asr_model_to_use = str(cached_asr_path)
+                        logger.info(f"使用缓存ASR模型: {cached_asr_path}")
+                        status_callback(format_loading_status(3, 4, "正在加载缓存 ASR 模型..."))
+                    else:
+                        status_callback(format_loading_status(3, 4, "未找到本地 ASR，正在尝试联网获取..."))
+                        asr_model_to_use = download_model_from_modelscope(
+                            str(self.model_path),
+                            status_callback=lambda text: status_callback(format_loading_status(3, 4, text))
+                            if status_callback
+                            else None,
+                            label="ASR 模型",
+                        )
             with suppress_terminal_noise():
                 self._model, self._model_kwargs = FunASRNano.from_pretrained(
                     model=asr_model_to_use,
