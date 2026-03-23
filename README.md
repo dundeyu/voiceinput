@@ -35,6 +35,12 @@ voice
 
 首次启动时如果本地没有模型，程序会自动从 ModelScope 获取并缓存到 `~/.cache/modelscope/hub/models/`。通常不需要先手动准备 `models/` 目录。
 
+首次下载体积说明：
+
+- ASR 默认模型首次下载约 `2 GB`
+- VAD 模型首次下载约 `4 MB`
+- 首次启动可能会花几分钟，后续会直接复用缓存
+
 ## Global `voice` Command
 
 如果你希望通过标准安装方式获得全局 `voice` 命令，推荐直接：
