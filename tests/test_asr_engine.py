@@ -99,3 +99,44 @@ def test_load_model_prefers_cached_asr_model_when_available(tmp_path):
     )
     status_texts = [call.args[0] for call in status_callback.call_args_list]
     assert any("正在加载缓存 ASR 模型" in text for text in status_texts)
+
+
+def test_load_model_keeps_modelscope_progress_without_custom_download_status(tmp_path):
+    fake_model = Mock()
+    fake_model.eval = Mock()
+
+    fake_funasr_nano = SimpleNamespace(
+        from_pretrained=Mock(return_value=(fake_model, {})),
+    )
+    download_model = Mock(return_value=str(tmp_path / ".cache/modelscope/hub/models/FunAudioLLM/Fun-ASR-Nano-2512"))
+
+    with patch("asr_engine._ensure_whisper_tokenizer_available"), patch(
+        "asr_engine._ensure_funasr_nano_path"
+    ), patch(
+        "asr_engine.get_cached_model_path",
+        return_value=None,
+    ), patch(
+        "asr_engine.download_model_from_modelscope",
+        download_model,
+    ), patch.dict(
+        "sys.modules",
+        {"funasr.models.fun_asr_nano.model": SimpleNamespace(FunASRNano=fake_funasr_nano)},
+    ):
+        engine = ASREngine(
+            model_path="FunAudioLLM/Fun-ASR-Nano-2512",
+            device="cpu",
+            default_language="中文",
+            use_vad=False,
+        )
+
+        status_callback = Mock()
+        loaded = engine.load_model(status_callback=status_callback)
+
+    assert loaded is True
+    download_model.assert_called_once_with(
+        "FunAudioLLM/Fun-ASR-Nano-2512",
+        label="ASR 模型",
+    )
+    status_texts = [call.args[0] for call in status_callback.call_args_list]
+    assert any("未找到本地 ASR，正在尝试联网获取" in text for text in status_texts)
+    assert not any("正在下载ASR 模型" in text for text in status_texts)

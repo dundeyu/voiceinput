@@ -2,7 +2,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from app_factory import DEFAULT_ASR_MODEL_ID, build_runtime, load_config
+from app_factory import (
+    DEFAULT_ASR_MODEL_ID,
+    DEFAULT_LOCAL_ASR_MODEL_PATH,
+    DEFAULT_LOCAL_VAD_MODEL_PATH,
+    build_runtime,
+    load_config,
+)
 from voice_entry import (
     load_runtime_config,
     resolve_config_path,
@@ -141,6 +147,47 @@ def test_build_runtime_uses_default_asr_model_id_when_path_is_blank():
 
     assert asr_cls.call_args.kwargs["model_path"] == DEFAULT_ASR_MODEL_ID
     assert asr_cls.call_args.kwargs["vad_model_path"] is None
+
+
+def test_build_runtime_prefers_project_models_directory_when_default_paths_exist(tmp_path):
+    config = {
+        "audio": {
+            "input_sample_rate": 48000,
+            "target_sample_rate": 16000,
+            "channels": 1,
+            "dtype": "float32",
+        },
+        "model": {
+            "path": "",
+            "device": "cpu",
+            "default_language": "中文",
+            "supported_languages": ["中文", "英文"],
+        },
+        "temp": {
+            "audio_dir": "temp",
+            "audio_filename": "recording.wav",
+        },
+        "filler_words": [],
+        "vocabulary_corrections": {},
+        "vad_model_path": "",
+        "offline_mode": False,
+    }
+    project_root = tmp_path / "project"
+    (project_root / DEFAULT_LOCAL_ASR_MODEL_PATH).mkdir(parents=True)
+    (project_root / DEFAULT_LOCAL_VAD_MODEL_PATH).mkdir(parents=True)
+
+    asr_cls = Mock(return_value=Mock(name="asr"))
+    fake_modules = {
+        "recorder": SimpleNamespace(AudioRecorder=Mock(return_value=Mock())),
+        "audio_processor": SimpleNamespace(AudioProcessor=Mock(return_value=Mock())),
+        "asr_engine": SimpleNamespace(ASREngine=asr_cls),
+    }
+
+    with patch.dict("sys.modules", fake_modules):
+        build_runtime(config, project_root)
+
+    assert asr_cls.call_args.kwargs["model_path"] == project_root / DEFAULT_LOCAL_ASR_MODEL_PATH
+    assert asr_cls.call_args.kwargs["vad_model_path"] == project_root / DEFAULT_LOCAL_VAD_MODEL_PATH
 
 
 def test_resolve_config_path_prefers_local_settings_json(tmp_path):
