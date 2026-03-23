@@ -63,3 +63,39 @@ def test_load_model_reports_missing_openai_whisper_dependency(tmp_path):
 
     assert loaded is False
     assert engine.last_error == "缺少 openai-whisper 依赖，请先安装 openai-whisper 后再启动 voice。"
+
+
+def test_load_model_prefers_cached_asr_model_when_available(tmp_path):
+    fake_model = Mock()
+    fake_model.eval = Mock()
+
+    fake_funasr_nano = SimpleNamespace(
+        from_pretrained=Mock(return_value=(fake_model, {})),
+    )
+
+    with patch("asr_engine._ensure_whisper_tokenizer_available"), patch(
+        "asr_engine._ensure_funasr_nano_path"
+    ), patch(
+        "asr_engine.get_cached_model_path",
+        return_value=tmp_path / ".cache/modelscope/hub/models/FunAudioLLM/Fun-ASR-Nano-2512",
+    ), patch.dict(
+        "sys.modules",
+        {"funasr.models.fun_asr_nano.model": SimpleNamespace(FunASRNano=fake_funasr_nano)},
+    ):
+        engine = ASREngine(
+            model_path="FunAudioLLM/Fun-ASR-Nano-2512",
+            device="cpu",
+            default_language="中文",
+            use_vad=False,
+        )
+
+        status_callback = Mock()
+        loaded = engine.load_model(status_callback=status_callback)
+
+    assert loaded is True
+    fake_funasr_nano.from_pretrained.assert_called_once()
+    assert fake_funasr_nano.from_pretrained.call_args.kwargs["model"] == str(
+        tmp_path / ".cache/modelscope/hub/models/FunAudioLLM/Fun-ASR-Nano-2512"
+    )
+    status_texts = [call.args[0] for call in status_callback.call_args_list]
+    assert any("正在加载缓存 ASR 模型" in text for text in status_texts)

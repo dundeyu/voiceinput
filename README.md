@@ -72,13 +72,7 @@ cp config/settings.example.yaml config/settings.yaml
 
 ```bash
 source venv/bin/activate
-python main.py
-```
-
-或者使用启动脚本：
-
-```bash
-./run.sh
+voice
 ```
 
 如果你想按标准 Python 项目方式安装当前仓库：
@@ -130,7 +124,7 @@ ln -sf "$(pwd)/bin/voice" /opt/homebrew/bin/voice
 ```json
 {
   "offline_mode": false,
-  "vad_model_path": "models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch",
+  "vad_model_path": "",
   "model": {
     "path": "models/FunAudioLLM/Fun-ASR-Nano-2512",
     "device": "cpu",
@@ -161,7 +155,7 @@ ln -sf "$(pwd)/bin/voice" /opt/homebrew/bin/voice
 常见配置项：
 
 - `offline_mode`：是否禁止联网下载模型，默认关闭，首次启动更适合保持联网
-- `vad_model_path`：可选本地 VAD 模型路径，不存在时会回退到缓存目录或联网下载
+- `vad_model_path`：可选本地 VAD 模型路径，留空时会自动解析缓存目录或联网下载
 - `model.path`：可选本地 ASR 模型路径
 - `model.device`：运行设备，如 `cpu`
 - `logging.console`：是否将日志输出到终端
@@ -202,7 +196,7 @@ venv/bin/python -m pytest tests
 
 - `config/settings.yaml` 中的模型路径是否存在
 - 离线模式下本地模型是否完整
-- `vad_model_path` 指向的 VAD 模型目录是否已经准备好
+- 如果 `vad_model_path` 已手动指定，检查它指向的 VAD 模型目录是否已经准备好
 
 ### 无法复制到剪贴板
 
