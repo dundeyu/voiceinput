@@ -40,11 +40,14 @@ def _is_relative_to(path: Path, parent: Path) -> bool:
 
 
 def resolve_config_path(project_root: Path, working_dir: Path | None = None) -> tuple[Path, bool]:
-    """解析运行时配置路径，优先使用本地 settings.json。"""
+    """解析运行时配置路径，优先使用本地 settings.yaml。"""
     working_dir = working_dir or Path.cwd()
     install_config_dir = get_install_config_dir()
 
     primary_candidates = [
+        working_dir / "config" / "settings.yaml",
+        project_root / "config" / "settings.yaml",
+        install_config_dir / "settings.yaml",
         working_dir / "config" / "settings.json",
         project_root / "config" / "settings.json",
         install_config_dir / "settings.json",
@@ -54,6 +57,9 @@ def resolve_config_path(project_root: Path, working_dir: Path | None = None) -> 
             return primary_path, False
 
     fallback_candidates = [
+        working_dir / "config" / "settings.example.yaml",
+        project_root / "config" / "settings.example.yaml",
+        install_config_dir / "settings.example.yaml",
         working_dir / "config" / "settings.example.json",
         project_root / "config" / "settings.example.json",
         install_config_dir / "settings.example.json",
@@ -127,8 +133,8 @@ def main():
 
     if used_example_config:
         print(
-            f"未找到 config/settings.json，正在使用示例配置: {config_path}。"
-            " 如需自定义，请复制为 config/settings.json 后再启动。"
+            f"未找到 config/settings.yaml，正在使用示例配置: {config_path}。"
+            " 如需自定义，请复制为 config/settings.yaml 后再启动。"
         )
 
     setup_logging(config, runtime_root)

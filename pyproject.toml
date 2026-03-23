@@ -63,7 +63,7 @@ py-modules = [
 ]
 
 [tool.setuptools.data-files]
-"config" = ["config/settings.example.json"]
+"config" = ["config/settings.example.yaml"]
 
 [tool.setuptools.package-dir]
 "" = "src"
