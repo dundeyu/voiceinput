@@ -52,9 +52,11 @@ pip install -r requirements-dev.txt
 
 默认配置见 [config/settings.json](config/settings.json)。
 
-- ASR 模型默认路径：`models/FunAudioLLM/Fun-ASR-Nano-2512`
-- VAD 模型默认路径：`models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch`
-- 离线模式默认开启，因此运行前需要先准备好本地模型资源
+- 可选 ASR 本地路径示例：`models/FunAudioLLM/Fun-ASR-Nano-2512`
+- 可选 VAD 本地路径示例：`models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch`
+- 离线模式默认关闭，首次启动时如果本地模型不存在，会自动尝试从 ModelScope 下载
+- 联网下载的模型默认缓存到用户目录：`~/.cache/modelscope/hub/models/`
+- 因此仓库里不要求必须存在 `models/` 目录；只有你想手动维护本地离线模型时才需要
 
 如果你要给别人分发配置，建议从 [config/settings.example.json](config/settings.example.json) 复制一份为 `config/settings.json` 再修改。
 
@@ -159,12 +161,19 @@ ln -sf "$(pwd)/bin/voice" /opt/homebrew/bin/voice
 常见配置项：
 
 - `offline_mode`：是否禁止联网下载模型，默认关闭，首次启动更适合保持联网
-- `vad_model_path`：本地 VAD 模型路径，默认位于项目 `models/` 目录下
-- `model.path`：ASR 模型路径
+- `vad_model_path`：可选本地 VAD 模型路径，不存在时会回退到缓存目录或联网下载
+- `model.path`：可选本地 ASR 模型路径
 - `model.device`：运行设备，如 `cpu`
 - `logging.console`：是否将日志输出到终端
 - `filler_words`：需要过滤的口语词
 - `vocabulary_corrections`：易错词替换规则
+
+模型缓存说明：
+
+- 首次联网下载的 ASR / VAD 模型会缓存到 `~/.cache/modelscope/hub/models/`
+- 程序会直接复用这份缓存，不会自动再复制到项目目录下的 `models/`
+- 如果你清理掉这份缓存，下次启动时会重新联网下载
+- 只有在明确想节省磁盘空间时，才建议手动清理 `~/.cache/modelscope/`
 
 ## Testing
 

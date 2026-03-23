@@ -3,6 +3,7 @@
 from pathlib import Path
 import yaml
 
+DEFAULT_ASR_MODEL_ID = "FunAudioLLM/Fun-ASR-Nano-2512"
 DEFAULT_VAD_MODEL_PATH = Path("models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch")
 
 
@@ -49,7 +50,7 @@ def build_runtime(config: dict, project_root: Path, status_callback=None):
     )
 
     model_config = config["model"]
-    model_path = resolve_project_path(model_config["path"])
+    model_path = resolve_project_path(model_config.get("path")) or DEFAULT_ASR_MODEL_ID
     vad_model_path = resolve_project_path(config.get("vad_model_path"), DEFAULT_VAD_MODEL_PATH)
 
     if status_callback:

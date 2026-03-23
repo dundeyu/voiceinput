@@ -2,7 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from app_factory import DEFAULT_VAD_MODEL_PATH, build_runtime, load_config
+from app_factory import DEFAULT_ASR_MODEL_ID, DEFAULT_VAD_MODEL_PATH, build_runtime, load_config
 from voice_entry import (
     load_runtime_config,
     resolve_config_path,
@@ -18,6 +18,19 @@ def test_load_config_reads_json(tmp_path):
 
     assert config["offline_mode"] is True
     assert config["model"]["path"] == "models/demo"
+
+
+def test_load_config_accepts_yaml_comments(tmp_path):
+    config_path = tmp_path / "settings.json"
+    config_path.write_text(
+        '# model.path 留空时自动解析默认 ASR 模型\noffline_mode: false\nmodel:\n  path: ""\n',
+        encoding="utf-8",
+    )
+
+    config = load_config(config_path)
+
+    assert config["offline_mode"] is False
+    assert config["model"]["path"] == ""
 
 
 def test_build_runtime_wires_components_from_config():
@@ -80,6 +93,43 @@ def test_build_runtime_wires_components_from_config():
         vad_model_path=Path("/project") / DEFAULT_VAD_MODEL_PATH,
         offline_mode=True,
     )
+
+
+def test_build_runtime_uses_default_asr_model_id_when_path_is_blank():
+    config = {
+        "audio": {
+            "input_sample_rate": 48000,
+            "target_sample_rate": 16000,
+            "channels": 1,
+            "dtype": "float32",
+        },
+        "model": {
+            "path": "",
+            "device": "cpu",
+            "default_language": "中文",
+            "supported_languages": ["中文", "英文"],
+        },
+        "temp": {
+            "audio_dir": "temp",
+            "audio_filename": "recording.wav",
+        },
+        "filler_words": [],
+        "vocabulary_corrections": {},
+        "vad_model_path": "",
+        "offline_mode": False,
+    }
+
+    asr_cls = Mock(return_value=Mock(name="asr"))
+    fake_modules = {
+        "recorder": SimpleNamespace(AudioRecorder=Mock(return_value=Mock())),
+        "audio_processor": SimpleNamespace(AudioProcessor=Mock(return_value=Mock())),
+        "asr_engine": SimpleNamespace(ASREngine=asr_cls),
+    }
+
+    with patch.dict("sys.modules", fake_modules):
+        build_runtime(config, Path("/project"))
+
+    assert asr_cls.call_args.kwargs["model_path"] == DEFAULT_ASR_MODEL_ID
 
 
 def test_resolve_config_path_prefers_local_settings_json(tmp_path):
