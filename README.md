@@ -1,5 +1,10 @@
 # voiceinput
 
+[![CI](https://github.com/dundeyu/voiceinput/actions/workflows/ci.yml/badge.svg)](https://github.com/dundeyu/voiceinput/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
+[![Platform](https://img.shields.io/badge/Platform-macOS-black)](https://www.apple.com/macos/)
+
 一个面向 macOS 终端的本地离线语音输入工具。按下快捷键开始录音，结束后自动进行语音识别，并将结果复制到系统剪贴板。
 
 项目目前默认通过全局 `voice` 命令使用，也可以直接运行 `python main.py`。
@@ -153,8 +158,7 @@ cp config/settings.example.yaml config/settings.yaml
 venv/bin/python -m pytest tests
 ```
 
-如果项目托管在 GitHub，默认 CI 也会在 macOS 环境自动执行同样的测试流程，配置见 [.github/workflows/ci.yml](.github/workflows/ci.yml)。
-仓库公开后，你可以再把对应的 Actions badge 链接补到这里。
+GitHub Actions 会在 macOS 环境自动执行同样的测试流程，配置见 [.github/workflows/ci.yml](.github/workflows/ci.yml)。
 
 当前测试覆盖：
 
