@@ -47,9 +47,35 @@ def run_streaming_inference(audio_data, processor, asr_engine, temp_audio_path: 
         return asr_engine.transcribe(str(stream_audio_path), language=language)
 
 
+def transcribe_stream_audio_path(stream_audio_path: Path, asr_engine, language: str, inference_lock):
+    """直接识别当前 stream 音频文件，用于调试当前流式缓存内容。"""
+    with inference_lock:
+        with suppress_third_party_logs():
+            return asr_engine.transcribe(str(stream_audio_path), language=language)
+
+
 def transcribe_recording(audio_data, processor, asr_engine, temp_audio_path: Path, language: str):
     """对最终录音进行处理并转写。"""
     processed = processor.process(audio_data)
     processor.save_wav(processed, str(temp_audio_path))
     with suppress_third_party_logs():
         return asr_engine.transcribe(str(temp_audio_path), language=language)
+
+
+def transcribe_recording_serialized(
+    audio_data,
+    processor,
+    asr_engine,
+    temp_audio_path: Path,
+    language: str,
+    inference_lock,
+):
+    """在最终识别前等待流式预览识别完成，避免同一 ASR 引擎并发推理卡死。"""
+    with inference_lock:
+        return transcribe_recording(
+            audio_data,
+            processor=processor,
+            asr_engine=asr_engine,
+            temp_audio_path=temp_audio_path,
+            language=language,
+        )

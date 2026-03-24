@@ -189,10 +189,12 @@ class CLI:
         self,
         on_record_toggle: Callable[[], None],
         on_language_switch: Callable[[], str],
+        on_stream_recognize: Callable[[], None],
         supported_languages: List[str]
     ):
         self.on_record_toggle = on_record_toggle
         self.on_language_switch = on_language_switch
+        self.on_stream_recognize = on_stream_recognize
         self.supported_languages = supported_languages
         self.current_language_idx = 0
         self.keyboard = KeyboardListener()
@@ -207,6 +209,7 @@ class CLI:
         content = [
             "[空格]     开始或停止录音",
             "[L]        循环切换识别语言",
+            "[S]        识别当前 stream 缓存",
             "[Q]        退出程序",
         ]
         if self.last_result:
@@ -240,6 +243,10 @@ class CLI:
                 new_lang = self.on_language_switch()
                 self.print_welcome()
                 self.show_notice(f"语言已切换为 {new_lang}", title="语言切换", style="cyan")
+
+        elif char_lower == 's':
+            if not self.is_recording:
+                self.on_stream_recognize()
 
         elif char == ' ':
             self.on_record_toggle()

@@ -149,6 +149,80 @@ def test_build_runtime_uses_default_asr_model_id_when_path_is_blank():
     assert asr_cls.call_args.kwargs["vad_model_path"] is None
 
 
+def test_build_runtime_prefers_mps_when_device_is_blank():
+    config = {
+        "audio": {
+            "input_sample_rate": 48000,
+            "target_sample_rate": 16000,
+            "channels": 1,
+            "dtype": "float32",
+        },
+        "model": {
+            "path": "",
+            "device": "",
+            "default_language": "中文",
+            "supported_languages": ["中文", "英文"],
+        },
+        "temp": {
+            "audio_dir": "temp",
+            "audio_filename": "recording.wav",
+        },
+        "filler_words": [],
+        "vocabulary_corrections": {},
+        "vad_model_path": "",
+        "offline_mode": False,
+    }
+
+    asr_cls = Mock(return_value=Mock(name="asr"))
+    fake_modules = {
+        "recorder": SimpleNamespace(AudioRecorder=Mock(return_value=Mock())),
+        "audio_processor": SimpleNamespace(AudioProcessor=Mock(return_value=Mock())),
+        "asr_engine": SimpleNamespace(ASREngine=asr_cls),
+    }
+
+    with patch.dict("sys.modules", fake_modules), patch("app_factory.resolve_default_device", return_value="mps"):
+        build_runtime(config, Path("/project"))
+
+    assert asr_cls.call_args.kwargs["device"] == "mps"
+
+
+def test_build_runtime_falls_back_to_cpu_when_no_gpu_is_available():
+    config = {
+        "audio": {
+            "input_sample_rate": 48000,
+            "target_sample_rate": 16000,
+            "channels": 1,
+            "dtype": "float32",
+        },
+        "model": {
+            "path": "",
+            "device": "",
+            "default_language": "中文",
+            "supported_languages": ["中文", "英文"],
+        },
+        "temp": {
+            "audio_dir": "temp",
+            "audio_filename": "recording.wav",
+        },
+        "filler_words": [],
+        "vocabulary_corrections": {},
+        "vad_model_path": "",
+        "offline_mode": False,
+    }
+
+    asr_cls = Mock(return_value=Mock(name="asr"))
+    fake_modules = {
+        "recorder": SimpleNamespace(AudioRecorder=Mock(return_value=Mock())),
+        "audio_processor": SimpleNamespace(AudioProcessor=Mock(return_value=Mock())),
+        "asr_engine": SimpleNamespace(ASREngine=asr_cls),
+    }
+
+    with patch.dict("sys.modules", fake_modules), patch("app_factory.resolve_default_device", return_value="cpu"):
+        build_runtime(config, Path("/project"))
+
+    assert asr_cls.call_args.kwargs["device"] == "cpu"
+
+
 def test_build_runtime_prefers_project_models_directory_when_default_paths_exist(tmp_path):
     config = {
         "audio": {

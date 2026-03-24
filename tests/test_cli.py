@@ -40,6 +40,21 @@ def test_make_box_supports_custom_body_border_color():
     assert LIGHT_CYAN in panel
 
 
+def test_print_welcome_includes_stream_recognize_shortcut(capsys):
+    cli = CLI(
+        on_record_toggle=lambda: None,
+        on_language_switch=lambda: "中文",
+        on_stream_recognize=lambda: None,
+        supported_languages=["中文"],
+    )
+
+    cli.print_welcome()
+
+    output = strip_ansi(capsys.readouterr().out)
+
+    assert "[S]        识别当前 stream 缓存" in output
+
+
 def test_wrap_visible_text_wraps_wide_text_without_overflow():
     wrapped = wrap_visible_text("现在正在测试语音的输入。" * 3, 20)
 
@@ -48,7 +63,12 @@ def test_wrap_visible_text_wraps_wide_text_without_overflow():
 
 
 def test_show_result_appends_usage_stats_to_status_line(capsys):
-    cli = CLI(on_record_toggle=lambda: None, on_language_switch=lambda: "中文", supported_languages=["中文"])
+    cli = CLI(
+        on_record_toggle=lambda: None,
+        on_language_switch=lambda: "中文",
+        on_stream_recognize=lambda: None,
+        supported_languages=["中文"],
+    )
 
     cli.show_result(
         "你好世界",
@@ -88,3 +108,16 @@ def test_loading_spinner_worker_clears_line_when_status_is_hidden(monkeypatch):
     _loading_spinner_worker("正在处理...", stop_event, FakeState())
 
     assert "\r\033[K" in output.getvalue()
+
+
+def test_handle_key_triggers_stream_recognize_when_idle():
+    called = []
+    cli = CLI(
+        on_record_toggle=lambda: None,
+        on_language_switch=lambda: "中文",
+        on_stream_recognize=lambda: called.append("stream"),
+        supported_languages=["中文"],
+    )
+
+    assert cli._handle_key("s") is True
+    assert called == ["stream"]

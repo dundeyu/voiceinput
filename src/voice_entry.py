@@ -8,9 +8,11 @@ from app_factory import build_runtime, load_config
 from bootstrap import apply_offline_env, build_preload_failure_details, preload_model_or_exit
 from cli import CLI, copy_to_clipboard
 from recording_session import (
+    get_stream_audio_path,
     run_streaming_inference,
     should_trigger_preview,
-    transcribe_recording,
+    transcribe_recording_serialized,
+    transcribe_stream_audio_path,
 )
 from loading_status import format_loading_status
 from runtime_ui import (
@@ -235,12 +237,13 @@ def main():
 
             if audio_data is not None:
                 with cli.show_loading("语音引擎疯狂计算中..."):
-                    text = transcribe_recording(
+                    text = transcribe_recording_serialized(
                         audio_data,
                         processor=processor,
                         asr_engine=asr_engine,
                         temp_audio_path=temp_audio_path,
                         language=cli.get_current_language(),
+                        inference_lock=stream_inference_lock,
                     )
 
                 if text:
@@ -270,9 +273,42 @@ def main():
         logger.info(f"切换语言: {new_lang}")
         return new_lang
 
+    def on_stream_recognize():
+        """直接识别当前 stream_recording.wav，便于调试流式缓存内容。"""
+        stream_audio_path = get_stream_audio_path(temp_audio_path)
+        if not stream_audio_path.exists():
+            cli.show_notice(
+                f"未找到流式缓存文件：{stream_audio_path}",
+                title="Stream 识别",
+                style="yellow",
+            )
+            return
+
+        cli.is_processing = True
+        try:
+            with cli.show_loading("正在识别当前 stream 缓存..."):
+                text = transcribe_stream_audio_path(
+                    stream_audio_path,
+                    asr_engine=asr_engine,
+                    language=cli.get_current_language(),
+                    inference_lock=stream_inference_lock,
+                )
+
+            if text:
+                cli.show_result(
+                    text,
+                    status_note="当前 stream 识别结果",
+                    status_details=[stream_audio_path.name],
+                )
+            else:
+                cli.show_result("当前 stream 缓存未识别出有效内容。", is_success=False)
+        finally:
+            cli.is_processing = False
+
     cli = CLI(
         on_record_toggle=on_record_toggle,
         on_language_switch=on_language_switch,
+        on_stream_recognize=on_stream_recognize,
         supported_languages=supported_languages,
     )
 

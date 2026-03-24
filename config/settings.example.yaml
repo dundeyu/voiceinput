@@ -1,11 +1,12 @@
 # model.path 留空时会自动解析默认 ASR 模型，并优先复用本机缓存目录。
+# model.device 留空时会自动优先选择 mps，其次 cuda，最后回退到 cpu。
 # vad_model_path 留空时会自动解析 VAD 缓存或联网下载。
 # 如果你想完全离线运行，也可以手动改成项目内或绝对路径下的本地模型目录。
 offline_mode: false
 vad_model_path: ""
 model:
   path: ""
-  device: "cpu"
+  device: ""
   default_language: "中文"
   supported_languages:
     - "中文"
