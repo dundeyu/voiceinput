@@ -115,7 +115,7 @@ cp config/settings.example.yaml config/settings.yaml
   "vad_model_path": "",
   "model": {
     "path": "models/FunAudioLLM/Fun-ASR-Nano-2512",
-    "device": "cpu",
+    "device": "",
     "default_language": "中文",
     "supported_languages": ["中文", "英文", "日文"]
   },
@@ -145,7 +145,7 @@ cp config/settings.example.yaml config/settings.yaml
 - `offline_mode`：是否禁止联网下载模型，默认关闭，首次启动更适合保持联网
 - `vad_model_path`：可选本地 VAD 模型路径，留空时会自动解析缓存目录或联网下载
 - `model.path`：可选本地 ASR 模型路径
-- `model.device`：运行设备，如 `cpu`
+- `model.device`：运行设备，留空时默认优先 `mps`，其次 `cuda`，最后回退到 `cpu`
 - `logging.console`：是否将日志输出到终端
 - `filler_words`：需要过滤的口语词
 - `vocabulary_corrections`：易错词替换规则
