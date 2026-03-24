@@ -81,6 +81,7 @@ ln -sf "$(pwd)/bin/voice" /opt/homebrew/bin/voice
 
 - `[空格]`：开始或停止录音
 - `[L]`：切换识别语言
+- `[S]`：直接识别当前 `temp/stream_recording.wav`，便于调试流式缓存内容
 - `[Q]`：退出程序
 
 建议完整说完一句话后再结束录音，识别结果会自动复制到剪贴板。
