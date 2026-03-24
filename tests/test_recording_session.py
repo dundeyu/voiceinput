@@ -1,3 +1,4 @@
+import threading
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -6,6 +7,8 @@ from recording_session import (
     run_streaming_inference,
     should_trigger_preview,
     transcribe_recording,
+    transcribe_recording_serialized,
+    transcribe_stream_audio_path,
 )
 
 
@@ -60,3 +63,58 @@ def test_transcribe_recording_uses_final_temp_path():
     processor.process.assert_called_once_with("audio")
     processor.save_wav.assert_called_once_with("processed", "/tmp/recording.wav")
     asr_engine.transcribe.assert_called_once_with("/tmp/recording.wav", language="英文")
+
+
+def test_transcribe_recording_serialized_waits_for_existing_preview_inference():
+    processor = Mock()
+    processor.process.return_value = "processed"
+    asr_engine = Mock()
+    asr_engine.transcribe.return_value = "final text"
+    inference_lock = threading.Lock()
+    inference_lock.acquire()
+    transcribe_started = threading.Event()
+    transcribe_finished = threading.Event()
+    result_holder = {}
+
+    def worker():
+        transcribe_started.set()
+        result_holder["text"] = transcribe_recording_serialized(
+            "audio",
+            processor=processor,
+            asr_engine=asr_engine,
+            temp_audio_path=Path("/tmp/recording.wav"),
+            language="中文",
+            inference_lock=inference_lock,
+        )
+        transcribe_finished.set()
+
+    with patch("recording_session.suppress_third_party_logs"):
+        thread = threading.Thread(target=worker)
+        thread.start()
+        transcribe_started.wait(timeout=1)
+
+        assert transcribe_finished.wait(timeout=0.1) is False
+        asr_engine.transcribe.assert_not_called()
+
+        inference_lock.release()
+        thread.join(timeout=1)
+
+    assert result_holder["text"] == "final text"
+    asr_engine.transcribe.assert_called_once_with("/tmp/recording.wav", language="中文")
+
+
+def test_transcribe_stream_audio_path_uses_existing_stream_file_with_lock():
+    asr_engine = Mock()
+    asr_engine.transcribe.return_value = "stream text"
+    inference_lock = threading.Lock()
+
+    with patch("recording_session.suppress_third_party_logs"):
+        text = transcribe_stream_audio_path(
+            Path("/tmp/stream_recording.wav"),
+            asr_engine=asr_engine,
+            language="中文",
+            inference_lock=inference_lock,
+        )
+
+    assert text == "stream text"
+    asr_engine.transcribe.assert_called_once_with("/tmp/stream_recording.wav", language="中文")

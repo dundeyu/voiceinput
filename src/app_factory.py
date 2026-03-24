@@ -8,6 +8,17 @@ DEFAULT_LOCAL_ASR_MODEL_PATH = Path("models/FunAudioLLM/Fun-ASR-Nano-2512")
 DEFAULT_LOCAL_VAD_MODEL_PATH = Path("models/iic/speech_fsmn_vad_zh-cn-16k-common-pytorch")
 
 
+def resolve_default_device() -> str:
+    """自动选择最合适的推理设备。"""
+    import torch
+
+    if torch.backends.mps.is_built() and torch.backends.mps.is_available():
+        return "mps"
+    if torch.cuda.is_available():
+        return "cuda"
+    return "cpu"
+
+
 def load_config(config_path: Path) -> dict:
     """加载配置文件，兼容 JSON/YAML。"""
     with open(config_path, "r", encoding="utf-8") as file:
@@ -62,6 +73,7 @@ def build_runtime(config: dict, project_root: Path, status_callback=None):
         or resolve_local_default_model_path(DEFAULT_LOCAL_ASR_MODEL_PATH)
         or DEFAULT_ASR_MODEL_ID
     )
+    device = model_config.get("device") or resolve_default_device()
     vad_model_path = (
         resolve_project_path(config.get("vad_model_path"))
         or resolve_local_default_model_path(DEFAULT_LOCAL_VAD_MODEL_PATH)
@@ -71,7 +83,7 @@ def build_runtime(config: dict, project_root: Path, status_callback=None):
         status_callback("正在初始化 ASR 引擎...")
     asr_engine = ASREngine(
         model_path=model_path,
-        device=model_config["device"],
+        device=device,
         default_language=model_config["default_language"],
         filler_words=config.get("filler_words", []),
         vocabulary_corrections=config.get("vocabulary_corrections", {}),
