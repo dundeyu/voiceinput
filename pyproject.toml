@@ -46,6 +46,7 @@ dev = [
 
 [project.scripts]
 voice = "voice_entry:main"
+voice-web = "web_app:main"
 
 [tool.setuptools]
 include-package-data = true
@@ -59,7 +60,9 @@ py-modules = [
   "recording_session",
   "runtime_ui",
   "text_processing",
+  "vocabulary_suggestion_store",
   "voice_entry",
+  "web_app",
 ]
 
 [tool.setuptools.data-files]

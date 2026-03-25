@@ -13,6 +13,10 @@
 
 ![voiceinput terminal screenshot](./screenshot.png)
 
+当前 Web 界面示意：
+
+![voiceinput web screenshot](./screenshot-web.png)
+
 项目目前默认通过全局 `voice` 命令使用，也可以直接运行 `python main.py`。
 
 ## Features
@@ -86,6 +90,66 @@ ln -sf "$(pwd)/bin/voice" /opt/homebrew/bin/voice
 
 建议完整说完一句话后再结束录音，识别结果会自动复制到剪贴板。
 
+## Web Version
+
+本地网页版本可以这样启动：
+
+```bash
+voice-web
+```
+
+默认只监听本机：
+
+- [http://127.0.0.1:8765](http://127.0.0.1:8765)
+- 支持空格开始 / 空格结束
+- 结束后会自动复制识别结果到浏览器剪贴板
+- 页面底部可提交“词汇修正建议”，会先进入本地建议箱
+- 如果这些参数已经写进 `config/settings.yaml` 的 `web` 段，直接运行 `voice-web` 即可
+
+如果你想让局域网里的其它机器也能访问，可以这样启动：
+
+```bash
+voice-web --host 0.0.0.0 --port 8765 --workers 2
+```
+
+说明：
+
+- `--host 0.0.0.0`：允许局域网访问
+- `--workers 2`：启动 2 个识别 worker，更适合多人同时使用
+- 启动后终端会打印本机可访问的局域网地址
+
+注意：
+
+- worker 越多，模型会加载越多份，内存占用也会增加
+- 如果 macOS 防火墙拦截了 Python 或终端，局域网访问会失败
+
+如果你想把网页服务挂到后台运行，可以这样启动：
+
+```bash
+voice-web --host 0.0.0.0 --port 8765 --workers 2 --daemon
+```
+
+默认会把后台信息写到：
+
+- `logs/voice-web.pid`
+- `logs/voice-web.stdout.log`
+- `logs/voice-web.stderr.log`
+
+命令行参数会覆盖 `config/settings.yaml` 里的 `web` 默认值。
+
+管理员配置页：
+
+- 入口：`/admin`
+- 需要管理员密码登录后才能进入配置页，默认密码是 `voice8765`
+- 可维护默认语言、设备、Web 服务参数、语气词、正式替换词
+- 可查看最近的“词汇修正建议”，并对每条建议执行“采纳”或“删除”
+
+说明：
+
+- `采纳`：会把建议写入正式 `vocabulary_corrections`，并从建议箱移除
+- `删除`：只会从建议箱移除，不会进入正式配置
+- 建议箱默认保存在 `logs/vocabulary_suggestions.jsonl`
+
 ## Setup Details
 
 默认配置见 [config/settings.yaml](config/settings.yaml)。
@@ -93,6 +157,7 @@ ln -sf "$(pwd)/bin/voice" /opt/homebrew/bin/voice
 - `model.path` 默认留空，表示自动解析默认 ASR 模型
 - `vad_model_path` 默认留空，表示自动解析 VAD 缓存或联网下载
 - 离线模式默认关闭，首次启动更适合保持联网
+- `web.host` / `web.port` / `web.workers` / `web.daemon` 可为 `voice-web` 提供默认启动参数
 - 如果你想完全离线运行，也可以手动把模型放到项目目录或任意绝对路径
 
 如果你要给别人分发配置，建议从 [config/settings.example.yaml](config/settings.example.yaml) 复制一份为 `config/settings.yaml` 再修改：
@@ -135,6 +200,12 @@ cp config/settings.example.yaml config/settings.yaml
     "audio_dir": "temp",
     "audio_filename": "recording.wav"
   },
+  "web": {
+    "host": "127.0.0.1",
+    "port": 8765,
+    "workers": 1,
+    "daemon": false
+  },
   "filler_words": ["呃", "嗯", "啊"],
   "vocabulary_corrections": {}
 }
@@ -147,6 +218,10 @@ cp config/settings.example.yaml config/settings.yaml
 - `model.path`：可选本地 ASR 模型路径
 - `model.device`：运行设备，留空时默认优先 `mps`，其次 `cuda`，最后回退到 `cpu`
 - `logging.console`：是否将日志输出到终端
+- `web.host`：`voice-web` 默认监听地址
+- `web.port`：`voice-web` 默认端口
+- `web.workers`：`voice-web` 默认 worker 数量
+- `web.daemon`：`voice-web` 默认是否后台运行
 - `filler_words`：需要过滤的口语词
 - `vocabulary_corrections`：易错词替换规则
 

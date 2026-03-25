@@ -1,41 +1,44 @@
-# model.path 留空时会自动解析默认 ASR 模型，并优先复用本机缓存目录。
-# model.device 留空时会自动优先选择 mps，其次 cuda，最后回退到 cpu。
-# vad_model_path 留空时会自动解析 VAD 缓存或联网下载。
-# 如果你想完全离线运行，也可以手动改成项目内或绝对路径下的本地模型目录。
 offline_mode: false
-vad_model_path: ""
+vad_model_path: ''
 model:
-  path: ""
-  device: ""
-  default_language: "中文"
+  path: ''
+  device: ''
+  default_language: 中文
   supported_languages:
-    - "中文"
-    - "英文"
-    - "日文"
+  - 中文
+  - 英文
+  - 日文
 audio:
   input_sample_rate: 48000
   target_sample_rate: 16000
   channels: 1
-  dtype: "float32"
+  dtype: float32
 logging:
-  level: "INFO"
-  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-  file: "logs/voice_input.log"
+  level: INFO
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+  file: logs/voice_input.log
   console: false
 temp:
-  audio_dir: "temp"
-  audio_filename: "recording.wav"
+  audio_dir: temp
+  audio_filename: recording.wav
 filler_words:
-  - "呃"
-  - "嗯"
-  - "啊"
-  - "这个"
-  - "就是"
-  - "然后"
-  - "所以"
-  - "其实"
-  - "的话"
+- 呃
+- 嗯
+- 啊
+- 这个
+- 就是
+- 然后
+- 所以
+- 其实
+- 的话
 vocabulary_corrections:
-  cloud code: "claude code"
-  open cloud: "openclaw"
-  定制油: "定制游"
+  cloud code: claude code
+  open cloud: openclaw
+  定制油: 定制游
+  PICK FAIR: PKFARE
+  道侣: 道旅
+  洗完: 喜玩
+  制裁: 直采
+  阿高大: AGODA
+  隔壁: GOBI
+  code x: codex
