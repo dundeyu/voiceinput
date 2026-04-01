@@ -33,6 +33,7 @@ dependencies = [
   "torchaudio>=2.0.0",
   "transformers>=4.0.0",
   "openai-whisper>=20250625",
+  "pynput>=1.7.7",
   "sounddevice>=0.4.0",
   "scipy>=1.10.0",
   "soundfile>=0.12.1",
@@ -46,6 +47,7 @@ dev = [
 
 [project.scripts]
 voice = "voice_entry:main"
+voice-desktop = "desktop_entry:main"
 voice-web = "web_app:main"
 
 [tool.setuptools]
@@ -56,6 +58,9 @@ py-modules = [
   "audio_processor",
   "bootstrap",
   "cli",
+  "desktop_entry",
+  "desktop_hotkey",
+  "desktop_preview",
   "recorder",
   "recording_session",
   "runtime_ui",
