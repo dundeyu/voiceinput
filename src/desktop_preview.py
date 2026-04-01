@@ -98,6 +98,37 @@ def _find_screen_frame_for_point(
     return screen_frames[0]
 
 
+def _rect_within_window(
+    rect: tuple[float, float, float, float] | None,
+    window_rect: tuple[float, float, float, float] | None,
+    *,
+    tolerance: float = 32.0,
+) -> bool:
+    """判断焦点元素矩形是否合理地落在当前窗口范围内。"""
+    if rect is None or window_rect is None:
+        return False
+
+    rect_x, rect_y, rect_width, rect_height = rect
+    window_x, window_y, window_width, window_height = window_rect
+
+    rect_left = rect_x
+    rect_right = rect_x + rect_width
+    rect_bottom = rect_y
+    rect_top = rect_y + rect_height
+
+    window_left = window_x - tolerance
+    window_right = window_x + window_width + tolerance
+    window_bottom = window_y - tolerance
+    window_top = window_y + window_height + tolerance
+
+    return (
+        window_left <= rect_left <= window_right
+        and window_left <= rect_right <= window_right
+        and window_bottom <= rect_bottom <= window_top
+        and window_bottom <= rect_top <= window_top
+    )
+
+
 class DesktopPreviewOverlay:
     """使用 macOS 原生 NSPanel 显示录音预览。"""
 
@@ -282,10 +313,11 @@ class DesktopPreviewOverlay:
     def _resolve_anchor_rect(self) -> tuple[str, tuple[float, float, float, float] | None]:
         """返回当前命中的定位来源与锚点矩形。"""
         caret_or_element = self._get_focus_anchor_rect()
-        if caret_or_element is not None:
+        focused_window = self._get_focused_window_rect()
+
+        if caret_or_element is not None and _rect_within_window(caret_or_element, focused_window):
             return ("focused-element", caret_or_element)
 
-        focused_window = self._get_focused_window_rect()
         if focused_window is not None:
             return ("focused-window", focused_window)
 

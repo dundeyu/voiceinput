@@ -2,6 +2,7 @@ from desktop_preview import (
     _compute_overlay_origin,
     _find_screen_frame_for_anchor,
     _find_screen_frame_for_point,
+    _rect_within_window,
 )
 
 
@@ -54,3 +55,11 @@ def test_compute_overlay_origin_can_force_screen_center():
 
     assert x == 1892
     assert y == -8
+
+
+def test_rect_within_window_accepts_reasonable_focus_rect():
+    assert _rect_within_window((1600, -100, 500, 40), (1512, -938, 1080, 1920)) is True
+
+
+def test_rect_within_window_rejects_offscreen_focus_rect():
+    assert _rect_within_window((10, 10, 500, 40), (1512, -938, 1080, 1920)) is False
