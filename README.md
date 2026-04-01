@@ -5,7 +5,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/Platform-macOS-black)](https://www.apple.com/macos/)
 
-一个面向 macOS 终端的本地离线语音输入工具。按下快捷键开始录音，结束后自动进行语音识别，并将结果复制到系统剪贴板。
+一个面向 macOS 的本地语音输入工具，支持终端模式、桌面全局热键模式和本地网页模式。按下快捷键开始录音，结束后自动进行语音识别，并将结果复制或粘贴回当前输入位置。
 
 ## Screenshot
 
@@ -23,6 +23,7 @@
 
 - 本地离线识别，默认不依赖在线服务
 - 面向终端的键盘交互界面
+- 支持桌面全局热键输入与悬浮预览
 - 录音结束后自动复制识别结果到剪贴板
 - 支持中文、英文、日文切换
 - 支持口语词过滤和词汇纠错
@@ -46,6 +47,12 @@ source venv/bin/activate
 pip install -r requirements-dev.txt
 pip install -e .
 voice
+```
+
+如果你想直接测试桌面全局热键模式，也可以把最后一步换成：
+
+```bash
+voice-desktop
 ```
 
 首次启动时如果本地没有模型，程序会自动从 ModelScope 获取并缓存到 `~/.cache/modelscope/hub/models/`。通常不需要先手动准备 `models/` 目录。
@@ -89,6 +96,32 @@ ln -sf "$(pwd)/bin/voice" /opt/homebrew/bin/voice
 - `[Q]`：退出程序
 
 建议完整说完一句话后再结束录音，识别结果会自动复制到剪贴板。
+
+## Desktop Version
+
+桌面全局热键版本可以这样启动：
+
+```bash
+voice-desktop
+```
+
+默认交互：
+
+- `Option + Space`：开始录音
+- 再按一次 `Option + Space`：结束录音
+- 识别完成后会自动粘贴到当前输入位置
+- 悬浮窗会显示实时预览，并在成功粘贴后显示 `本次 / 今日 / 累计`
+
+权限要求：
+
+- 麦克风权限
+- 辅助功能权限
+
+说明：
+
+- 当前如果目标应用能暴露更细的焦点信息，悬浮窗会尽量贴近输入区域
+- 如果目标应用不暴露输入框或光标位置，悬浮窗会稳定回退到当前屏幕中间
+- 桌面模式复用与 `voice` 相同的统计口径和模型加载逻辑
 
 ## Web Version
 
@@ -159,6 +192,7 @@ voice-web --host 0.0.0.0 --port 8765 --workers 2 --daemon
 - 离线模式默认关闭，首次启动更适合保持联网
 - `web.host` / `web.port` / `web.workers` / `web.daemon` 可为 `voice-web` 提供默认启动参数
 - 如果你想完全离线运行，也可以手动把模型放到项目目录或任意绝对路径
+- `voice-desktop` 默认使用 `Option + Space` 作为全局热键
 
 如果你要给别人分发配置，建议从 [config/settings.example.yaml](config/settings.example.yaml) 复制一份为 `config/settings.yaml` 再修改：
 
@@ -271,6 +305,14 @@ GitHub Actions 会在 macOS 环境自动执行同样的测试流程，配置见 
 - 终端是否有麦克风权限
 - 系统输入设备是否正常
 - 当前采样率配置是否兼容你的设备
+
+### 桌面热键没有响应
+
+检查：
+
+- 运行 `voice-desktop` 的终端是否已授予“辅助功能”
+- 终端是否已授予“麦克风”
+- 修改权限后是否已经完全退出并重新打开终端
 
 ## Development
 
