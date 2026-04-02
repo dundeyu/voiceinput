@@ -331,6 +331,7 @@ class DesktopPreviewOverlay:
 
         from AppKit import (
             NSApplication,
+            NSApplicationActivationPolicyAccessory,
             NSBackingStoreBuffered,
             NSColor,
             NSFloatingWindowLevel,
@@ -345,7 +346,8 @@ class DesktopPreviewOverlay:
         )
         from PyObjCTools import AppHelper
 
-        NSApplication.sharedApplication()
+        app = NSApplication.sharedApplication()
+        app.setActivationPolicy_(NSApplicationActivationPolicyAccessory)
         self._call_after = AppHelper.callAfter
 
         screen = NSScreen.mainScreen()

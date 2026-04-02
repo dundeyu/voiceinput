@@ -21,3 +21,4 @@ build/
 AGENTS.md
 claude.sh
 funasr-mcp/
+config/settings.yaml
