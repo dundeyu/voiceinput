@@ -42,11 +42,24 @@ class DesktopVoiceController:
         self.usage_stats_store = UsageStatsStore(get_usage_stats_path(config, runtime_root))
         self.language = config["model"]["default_language"]
         self.preview = DesktopPreviewOverlay()
-        self.listener = GlobalHotkeyListener(self.toggle_recording)
+        self.listener = GlobalHotkeyListener(self.toggle_recording, intercept=self._hotkey_intercept_enabled())
         self.is_recording = False
         self.last_inference_time = 0.0
         self.interim_text = ""
         self._inference_lock = threading.Lock()
+        self._preview_generation = 0
+        self._applied_preview_generation = 0
+
+    def _apply_preview_result(self, text: str, generation: int) -> None:
+        """只接受当前录音轮次里最新的预览结果，避免旧结果乱序覆盖界面。"""
+        if not text or not self.is_recording:
+            return
+        if generation < self._applied_preview_generation:
+            return
+
+        self._applied_preview_generation = generation
+        self.interim_text = text
+        self.preview.update_text(text)
 
     def preload_runtime(self) -> None:
         """像 CLI 一样在启动阶段完成模型预加载。"""
@@ -64,8 +77,15 @@ class DesktopVoiceController:
             ),
         )
 
+    def _hotkey_intercept_enabled(self) -> bool:
+        hotkey_config = self.config.get("hotkey", {})
+        return bool(hotkey_config.get("intercept", False))
+
     def _remove_hotkey_artifact(self) -> None:
         """删除 Option+Space 留下的空格。"""
+        if self._hotkey_intercept_enabled():
+            return
+
         try:
             from pynput.keyboard import Controller, Key
 
@@ -112,9 +132,16 @@ class DesktopVoiceController:
     def _render_preview_loop(self) -> None:
         while self.is_recording:
             now = time.time()
-            if should_trigger_preview(now, self.last_inference_time):
-                audio_data = self.recorder.get_current_audio()
+            audio_data = self.recorder.get_current_audio()
+            audio_duration_seconds = None
+            if audio_data is not None and len(audio_data) > 0:
+                audio_duration_seconds = len(audio_data) / float(self.recorder.sample_rate)
+
+            if should_trigger_preview(now, self.last_inference_time, audio_duration_seconds=audio_duration_seconds):
                 if audio_data is not None and len(audio_data) > 0 and self._inference_lock.acquire(blocking=False):
+                    generation = self._preview_generation + 1
+                    self._preview_generation = generation
+
                     def _do_inference(data):
                         try:
                             text = run_streaming_inference(
@@ -124,9 +151,7 @@ class DesktopVoiceController:
                                 temp_audio_path=self.temp_audio_path,
                                 language=self.language,
                             )
-                            if text:
-                                self.interim_text = text
-                                self.preview.update_text(text)
+                            self._apply_preview_result(text, generation)
                         except Exception:
                             self.logger.debug("流式预览识别失败", exc_info=True)
                         finally:
@@ -145,6 +170,8 @@ class DesktopVoiceController:
         if not self.is_recording:
             self.interim_text = ""
             self.last_inference_time = time.time()
+            self._preview_generation = 0
+            self._applied_preview_generation = 0
             try:
                 self.recorder.start_recording()
             except Exception as exc:

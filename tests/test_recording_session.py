@@ -17,6 +17,11 @@ def test_should_trigger_preview_respects_interval():
     assert should_trigger_preview(10.0, 8.6) is False
 
 
+def test_should_trigger_preview_waits_for_minimum_audio_duration():
+    assert should_trigger_preview(10.0, 8.0, audio_duration_seconds=1.8) is False
+    assert should_trigger_preview(10.0, 8.0, audio_duration_seconds=2.5) is True
+
+
 def test_get_stream_audio_path_uses_stream_prefix():
     path = get_stream_audio_path(Path("/tmp/recording.wav"))
 

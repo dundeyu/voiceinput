@@ -1,10 +1,12 @@
 """CLI entrypoint for the packaged voice command."""
 
+import argparse
 import logging
 import sysconfig
 from pathlib import Path
 
 from app_factory import build_runtime, load_config
+from autostart import get_launch_agent_status, install_launch_agent, uninstall_launch_agent
 from bootstrap import apply_offline_env, build_preload_failure_details, preload_model_or_exit
 from cli import CLI, copy_to_clipboard
 from recording_session import (
@@ -128,8 +130,66 @@ def setup_logging(config: dict, project_root: Path):
     )
 
 
+def _build_arg_parser() -> argparse.ArgumentParser:
+    """构建 CLI 参数解析器。"""
+    parser = argparse.ArgumentParser(add_help=True)
+    subparsers = parser.add_subparsers(dest="command")
+
+    autostart_parser = subparsers.add_parser("autostart", help="管理 voiced 开机自启动")
+    autostart_subparsers = autostart_parser.add_subparsers(dest="autostart_command")
+    autostart_subparsers.add_parser("install", help="安装并启用 voiced 自启动")
+    autostart_subparsers.add_parser("uninstall", help="卸载 voiced 自启动")
+    autostart_subparsers.add_parser("status", help="查看 voiced 自启动状态")
+
+    return parser
+
+
+def _handle_autostart_command(args: argparse.Namespace, runtime_root: Path) -> int:
+    """处理 voiced 自启动管理命令。"""
+    if args.autostart_command == "install":
+        launch_agent_path = install_launch_agent(runtime_root)
+        print(f"已安装 voiced 开机自启动: {launch_agent_path}")
+        return 0
+
+    if args.autostart_command == "uninstall":
+        launch_agent_path = uninstall_launch_agent()
+        print(f"已移除 voiced 开机自启动: {launch_agent_path}")
+        return 0
+
+    if args.autostart_command == "status":
+        status = get_launch_agent_status()
+        if not status["loaded"]:
+            print("voiced 开机自启动未安装")
+            return 0
+        if status["running"]:
+            print(f"voiced 开机自启动运行中，PID: {status['pid']}")
+            return 0
+        if status["last_exit_status"] is None:
+            print("voiced 开机自启动已安装，但当前未运行")
+            return 0
+        print(f"voiced 开机自启动已安装，但当前未运行，上次退出码: {status['last_exit_status']}")
+        return 0
+
+    raise SystemExit("缺少 autostart 子命令，请使用 install、uninstall 或 status")
+
+
+def _resolve_runtime_root_for_autostart(project_root: Path) -> Path:
+    """为自启动管理命令解析运行时根目录。"""
+    config_path, _used_example = resolve_config_path(project_root, working_dir=project_root)
+    if config_path.exists():
+        return resolve_runtime_root(config_path, project_root, working_dir=project_root)
+    return project_root
+
+
 def main():
     """主函数。"""
+    parser = _build_arg_parser()
+    args = parser.parse_args()
+
+    if args.command == "autostart":
+        runtime_root = _resolve_runtime_root_for_autostart(SOURCE_ROOT)
+        return _handle_autostart_command(args, runtime_root)
+
     config, config_path, used_example_config, runtime_root = load_runtime_config(SOURCE_ROOT)
     apply_offline_env(config)
 
@@ -163,8 +223,16 @@ def main():
             dot = "🔴" if int(time.time() * 2) % 2 == 0 else "⭕"
 
             current_time = time.time()
-            if should_trigger_preview(current_time, last_inference_time):
-                audio_data = recorder.get_current_audio()
+            audio_data = recorder.get_current_audio()
+            audio_duration_seconds = None
+            if audio_data is not None and len(audio_data) > 0:
+                audio_duration_seconds = len(audio_data) / float(recorder.sample_rate)
+
+            if should_trigger_preview(
+                current_time,
+                last_inference_time,
+                audio_duration_seconds=audio_duration_seconds,
+            ):
                 if audio_data is not None and len(audio_data) > 0:
                     try:
                         if stream_inference_lock.acquire(blocking=False):

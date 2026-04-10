@@ -17,6 +17,9 @@ audio:
   target_sample_rate: 16000
   channels: 1
   dtype: "float32"
+hotkey:
+  # 是否尝试在更早层级拦截 Option+Space，减少前台应用先收到热键的概率。
+  intercept: true
 logging:
   level: "INFO"
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

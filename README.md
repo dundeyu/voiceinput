@@ -111,6 +111,14 @@ voice-desktop
 - 再按一次 `Option + Space`：结束录音
 - 识别完成后会自动粘贴到当前输入位置
 - 悬浮窗会显示实时预览，并在成功粘贴后显示 `本次 / 今日 / 累计`
+- 开始和结束热键都会尝试清理 `Option + Space` 可能带来的空格残留
+- 可通过 `config/settings.yaml` 中的 `hotkey.intercept` 开关启用更早层级的热键拦截尝试
+
+当前说明：
+
+- `hotkey.intercept: true` 会启用基于 Quartz HID event tap 的拦截尝试，尽量减少前台应用先收到 `Option + Space`
+- 如果目标应用或终端仍然先处理了按键，桌面模式会继续通过“空格后回退”的方式清理残留字符
+- 当前文档只描述现有实现，不保证所有终端都能完全吞掉这个热键
 
 权限要求：
 
@@ -122,6 +130,25 @@ voice-desktop
 - 当前如果目标应用能暴露更细的焦点信息，悬浮窗会尽量贴近输入区域
 - 如果目标应用不暴露输入框或光标位置，悬浮窗会稳定回退到当前屏幕中间
 - 桌面模式复用与 `voice` 相同的统计口径和模型加载逻辑
+
+如果你希望在登录 macOS 后自动启动桌面模式，可以执行：
+
+```bash
+voice autostart install
+```
+
+常用管理命令：
+
+```bash
+voice autostart status
+voice autostart uninstall
+```
+
+说明：
+
+- 该命令会在 `~/Library/LaunchAgents/com.voiceinput.voiced.plist` 安装当前用户的 LaunchAgent
+- 自启动目标是 `voiced` 对应的桌面模式入口，即 `desktop_entry`
+- 首次自启动后，如系统尚未授权，仍需要授予麦克风和辅助功能权限
 
 ## Web Version
 
@@ -193,6 +220,7 @@ voice-web --host 0.0.0.0 --port 8765 --workers 2 --daemon
 - `web.host` / `web.port` / `web.workers` / `web.daemon` 可为 `voice-web` 提供默认启动参数
 - 如果你想完全离线运行，也可以手动把模型放到项目目录或任意绝对路径
 - `voice-desktop` 默认使用 `Option + Space` 作为全局热键
+- `hotkey.intercept`：是否启用更早层级的热键拦截尝试，默认示例配置为 `true`
 
 如果你要给别人分发配置，建议从 [config/settings.example.yaml](config/settings.example.yaml) 复制一份为 `config/settings.yaml` 再修改：
 
@@ -208,41 +236,42 @@ cp config/settings.example.yaml config/settings.yaml
 
 一个最小可用示例：
 
-```json
-{
-  "offline_mode": false,
-  "vad_model_path": "",
-  "model": {
-    "path": "models/FunAudioLLM/Fun-ASR-Nano-2512",
-    "device": "",
-    "default_language": "中文",
-    "supported_languages": ["中文", "英文", "日文"]
-  },
-  "audio": {
-    "input_sample_rate": 48000,
-    "target_sample_rate": 16000,
-    "channels": 1,
-    "dtype": "float32"
-  },
-  "logging": {
-    "level": "INFO",
-    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    "file": "logs/voice_input.log",
-    "console": false
-  },
-  "temp": {
-    "audio_dir": "temp",
-    "audio_filename": "recording.wav"
-  },
-  "web": {
-    "host": "127.0.0.1",
-    "port": 8765,
-    "workers": 1,
-    "daemon": false
-  },
-  "filler_words": ["呃", "嗯", "啊"],
-  "vocabulary_corrections": {}
-}
+```yaml
+offline_mode: false
+vad_model_path: ""
+model:
+  path: ""
+  device: ""
+  default_language: "中文"
+  supported_languages:
+    - "中文"
+    - "英文"
+    - "日文"
+audio:
+  input_sample_rate: 48000
+  target_sample_rate: 16000
+  channels: 1
+  dtype: "float32"
+hotkey:
+  intercept: true
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/voice_input.log"
+  console: false
+temp:
+  audio_dir: "temp"
+  audio_filename: "recording.wav"
+web:
+  host: "127.0.0.1"
+  port: 8765
+  workers: 1
+  daemon: false
+filler_words:
+  - "呃"
+  - "嗯"
+  - "啊"
+vocabulary_corrections: {}
 ```
 
 常见配置项：
@@ -252,6 +281,7 @@ cp config/settings.example.yaml config/settings.yaml
 - `model.path`：可选本地 ASR 模型路径
 - `model.device`：运行设备，留空时默认优先 `mps`，其次 `cuda`，最后回退到 `cpu`
 - `logging.console`：是否将日志输出到终端
+- `hotkey.intercept`：是否启用基于 Quartz 的更早层级热键拦截尝试，减少前台应用先收到 `Option + Space` 的概率
 - `web.host`：`voice-web` 默认监听地址
 - `web.port`：`voice-web` 默认端口
 - `web.workers`：`voice-web` 默认 worker 数量
@@ -313,6 +343,37 @@ GitHub Actions 会在 macOS 环境自动执行同样的测试流程，配置见 
 - 运行 `voice-desktop` 的终端是否已授予“辅助功能”
 - 终端是否已授予“麦克风”
 - 修改权限后是否已经完全退出并重新打开终端
+- 修改 `config/settings.yaml` 后，是否已经重启当前 `voice-desktop` / `voiced` 进程
+- 如果在 Ghostty 等终端中使用，是否已启用 `hotkey.intercept: true`
+
+补充说明：
+
+- 当前实现会尽量在更早层级拦截 `Option + Space`
+- 如果某些终端仍然先收到按键，桌面模式会继续通过“输入空格后回退”的方式清理残留字符
+- 如果开始/结束录音行为异常，先确认当前运行的是否是最新进程，而不是旧的后台自启动实例
+
+### 桌面模式识别后没有粘贴到当前输入框
+
+检查：
+
+- 当前焦点是否仍然停留在目标输入框
+- `voice-desktop` 是否仍在运行，且第二次热键后没有卡死
+- 是否刚刚更新过程序但尚未重启运行中的 `voice-desktop` / `voiced`
+- 先查看 `logs/voice_input.log`，确认识别与自动粘贴是否执行成功
+
+说明：
+
+- 桌面模式当前通过剪贴板 + 模拟 `Cmd+V` 完成自动粘贴
+- 如果目标应用限制模拟粘贴或中途丢失焦点，可能会出现识别完成但没有成功写入输入框的情况
+- 遇到这类问题时，建议先在普通文本输入框和终端里分别复现，再结合日志判断是热键、焦点还是粘贴路径问题
+
+### Ghostty / 终端里热键行为和普通输入框不完全一致
+
+说明：
+
+- 不同终端对 `Option + Space` 的处理方式可能不同
+- 当前实现已经加入 `hotkey.intercept` 和热键残留清理，但文档不承诺所有终端都能完全吞掉这个组合键
+- 如果你依赖稳定的终端输入行为，优先确认当前配置与当前进程一致，并在更新代码后重启桌面模式进程
 
 ## Development
 

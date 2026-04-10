@@ -6,10 +6,19 @@ from pathlib import Path
 
 
 PREVIEW_INTERVAL_SECONDS = 1.5
+MIN_PREVIEW_AUDIO_SECONDS = 2.4
 
 
-def should_trigger_preview(now: float, last_inference_time: float, interval: float = PREVIEW_INTERVAL_SECONDS) -> bool:
+def should_trigger_preview(
+    now: float,
+    last_inference_time: float,
+    audio_duration_seconds: float | None = None,
+    interval: float = PREVIEW_INTERVAL_SECONDS,
+    min_audio_seconds: float = MIN_PREVIEW_AUDIO_SECONDS,
+) -> bool:
     """判断是否应该触发下一次流式预览识别。"""
+    if audio_duration_seconds is not None and audio_duration_seconds < min_audio_seconds:
+        return False
     return now - last_inference_time >= interval
 
 
