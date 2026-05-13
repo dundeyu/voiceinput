@@ -28,6 +28,16 @@ logging:
 temp:
   audio_dir: "temp"
   audio_filename: "recording.wav"
+web:
+  host: "127.0.0.1"
+  port: 8765
+  asr_ws_host: "127.0.0.1"
+  asr_ws_port: 8766
+  workers: 1
+  daemon: false
+stream:
+  segment_seconds: 5
+  silence_ms: 800
 filler_words:
   - "呃"
   - "嗯"

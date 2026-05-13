@@ -391,6 +391,32 @@ GitHub Actions 会在 macOS 环境自动执行同样的测试流程，配置见 
 venv/bin/python -m pytest tests
 ```
 
+## Realtime PCM ASR
+
+`voice-web` 现在会同时启动本机实时 ASR WebSocket：
+
+```text
+ws://127.0.0.1:8766/ws/asr/pcm
+```
+
+协议用于 softphone 通话旁路转写：首帧发送 JSON `type=start`，包含
+`session_id/call_id/sample_rate/encoding=pcm_s16le/channels=1/language`；后续
+binary frame 直接发送 raw PCM s16le；结束时发送 JSON `type=stop`。服务端返回
+`ready`、`segment`、`final` 或 `error`。
+
+配置项：
+
+```yaml
+web:
+  asr_ws_host: "127.0.0.1"
+  asr_ws_port: 8766
+stream:
+  segment_seconds: 5
+  silence_ms: 800
+```
+
+实时流不会为每通电话保留长期本地音频文件；如果 ASR 推理需要 WAV 输入，只使用临时文件并在识别后删除。
+
 如果你准备公开仓库，建议保留当前的 issue / PR 模板，这会明显改善协作质量和问题收集质量。
 
 ## Acknowledgements

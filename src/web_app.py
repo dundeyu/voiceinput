@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import logging
 import os
@@ -23,6 +24,7 @@ from tempfile import NamedTemporaryFile
 from typing import Any
 from urllib.parse import urlparse
 
+import numpy as np
 import soundfile as sf
 import yaml
 
@@ -60,8 +62,18 @@ class WebServerOptions:
 
     host: str
     port: int
+    asr_ws_host: str
+    asr_ws_port: int
     workers: int
     daemon: bool
+
+
+@dataclass(frozen=True)
+class StreamRecognitionOptions:
+    """实时流式识别参数。"""
+
+    segment_seconds: float
+    silence_ms: int
 
 
 def get_lan_addresses() -> list[str]:
@@ -105,14 +117,26 @@ def resolve_web_server_options(config: dict, args: argparse.Namespace) -> WebSer
 
     host = args.host if args.host is not None else str(web_config.get("host", "127.0.0.1"))
     port = args.port if args.port is not None else int(web_config.get("port", 8765))
+    asr_ws_host = args.asr_ws_host if args.asr_ws_host is not None else str(web_config.get("asr_ws_host", "127.0.0.1"))
+    asr_ws_port = args.asr_ws_port if args.asr_ws_port is not None else int(web_config.get("asr_ws_port", 8766))
     workers = args.workers if args.workers is not None else int(web_config.get("workers", 1))
     daemon = args.daemon if args.daemon is not None else bool(web_config.get("daemon", False))
 
     return WebServerOptions(
         host=host,
         port=port,
+        asr_ws_host=asr_ws_host,
+        asr_ws_port=asr_ws_port,
         workers=max(1, int(workers)),
         daemon=bool(daemon),
+    )
+
+
+def resolve_stream_recognition_options(config: dict) -> StreamRecognitionOptions:
+    stream_config = config.get("stream", {})
+    return StreamRecognitionOptions(
+        segment_seconds=max(1.0, float(stream_config.get("segment_seconds", 5))),
+        silence_ms=max(0, int(stream_config.get("silence_ms", 800))),
     )
 
 
@@ -1057,6 +1081,40 @@ def decode_wav_bytes(audio_bytes: bytes) -> tuple[Any, int]:
     return audio_data, sample_rate
 
 
+def decode_pcm_s16le_bytes(audio_bytes: bytes) -> np.ndarray:
+    """从 raw pcm_s16le 字节中读取 float32 单声道音频。"""
+    if len(audio_bytes) < 2:
+        return np.array([], dtype=np.float32)
+    even_length = len(audio_bytes) - (len(audio_bytes) % 2)
+    pcm = np.frombuffer(audio_bytes[:even_length], dtype="<i2")
+    return (pcm.astype(np.float32) / 32768.0).astype(np.float32)
+
+
+def pcm_s16le_should_flush_on_silence(
+    audio_bytes: bytes,
+    sample_rate: int,
+    silence_ms: int,
+    *,
+    min_audio_ms: int = 500,
+    amplitude_threshold: int = 500,
+) -> bool:
+    """判断 PCM 缓冲区是否已经出现“有声音后接静音”的切分点。"""
+    if sample_rate <= 0 or silence_ms <= 0:
+        return False
+    even_length = len(audio_bytes) - (len(audio_bytes) % 2)
+    if even_length <= 0:
+        return False
+    min_samples = max(1, int(sample_rate * min_audio_ms / 1000))
+    silence_samples = max(1, int(sample_rate * silence_ms / 1000))
+    samples = np.frombuffer(audio_bytes[:even_length], dtype="<i2")
+    if len(samples) < min_samples + silence_samples:
+        return False
+    abs_samples = np.abs(samples.astype(np.int32))
+    has_voice = bool(np.any(abs_samples[:-silence_samples] > amplitude_threshold))
+    trailing_silence = bool(np.all(abs_samples[-silence_samples:] <= amplitude_threshold))
+    return has_voice and trailing_silence
+
+
 class WebRecognitionRuntime:
     """网页识别服务运行时。"""
 
@@ -1367,6 +1425,55 @@ class WebRecognitionRuntime:
                     "char_count": len((text or "").replace("\n", "")),
                     "worker_id": worker.worker_id,
                 }
+
+    def transcribe_pcm_s16le_bytes(
+        self,
+        audio_bytes: bytes,
+        sample_rate: int,
+        language: str | None = None,
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
+        """识别一段实时 PCM 音频，不保留长期本地音频文件。"""
+        audio_data = decode_pcm_s16le_bytes(audio_bytes)
+        if audio_data is None or len(audio_data) == 0:
+            raise ValueError("PCM 音频为空")
+
+        language = language or self.config["model"]["default_language"]
+        temp_dir = self.runtime_root / self.config["temp"]["audio_dir"]
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        session_key = self._sanitize_session_id(session_id)
+        session_lock = self._get_session_lock(session_id)
+        with session_lock:
+            with self._checkout_worker() as worker:
+                processor = self._build_processor_for_sample_rate(sample_rate, worker.processor)
+                with NamedTemporaryFile(
+                    prefix=f"stream_{session_key}_",
+                    suffix=".wav",
+                    dir=temp_dir,
+                    delete=False,
+                ) as temp_file:
+                    temp_audio_path = Path(temp_file.name)
+
+                try:
+                    start_time = time.perf_counter()
+                    text = transcribe_recording_serialized(
+                        audio_data,
+                        processor=processor,
+                        asr_engine=worker.asr_engine,
+                        temp_audio_path=temp_audio_path,
+                        language=language,
+                        inference_lock=threading.Lock(),
+                    )
+                    duration_seconds = time.perf_counter() - start_time
+                    return {
+                        "text": text or "",
+                        "language": language,
+                        "duration_seconds": round(duration_seconds, 2),
+                        "char_count": len((text or "").replace("\n", "")),
+                        "worker_id": worker.worker_id,
+                    }
+                finally:
+                    temp_audio_path.unlink(missing_ok=True)
 
     def record_vocabulary_suggestion(
         self,
@@ -1682,11 +1789,132 @@ class VoiceWebRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
+async def handle_asr_pcm_websocket(websocket, path: str, runtime: WebRecognitionRuntime, options: StreamRecognitionOptions):
+    """处理 softphone bridge 推送过来的实时 PCM 流。"""
+    if path != "/ws/asr/pcm":
+        await websocket.close(code=1008, reason="unsupported path")
+        return
+
+    raw_start = await websocket.recv()
+    if not isinstance(raw_start, str):
+        await websocket.send(json.dumps({"type": "error", "error": "first frame must be JSON start"}, ensure_ascii=False))
+        await websocket.close(code=1002, reason="invalid start")
+        return
+    try:
+        start = json.loads(raw_start)
+    except json.JSONDecodeError:
+        await websocket.send(json.dumps({"type": "error", "error": "invalid JSON start frame"}, ensure_ascii=False))
+        await websocket.close(code=1002, reason="invalid start")
+        return
+
+    session_id = str(start.get("session_id") or uuid.uuid4().hex)
+    call_id = str(start.get("call_id") or "")
+    language = str(start.get("language") or runtime.config["model"]["default_language"])
+    encoding = str(start.get("encoding") or "")
+    channels = int(start.get("channels") or 1)
+    sample_rate = int(start.get("sample_rate") or 16000)
+    if start.get("type") != "start" or encoding != "pcm_s16le" or channels != 1 or sample_rate <= 0:
+        await websocket.send(json.dumps({"type": "error", "error": "unsupported stream parameters"}, ensure_ascii=False))
+        await websocket.close(code=1003, reason="unsupported stream")
+        return
+
+    await websocket.send(json.dumps({
+        "type": "ready",
+        "session_id": session_id,
+        "call_id": call_id,
+        "sample_rate": sample_rate,
+        "language": language,
+    }, ensure_ascii=False))
+
+    segment_bytes = max(1, int(sample_rate * 2 * options.segment_seconds))
+    buffer = bytearray()
+    sequence = 0
+
+    async def transcribe_segment(audio_bytes: bytes, is_final: bool):
+        nonlocal buffer, sequence
+        if not audio_bytes:
+            return
+        try:
+            result = await asyncio.to_thread(
+                runtime.transcribe_pcm_s16le_bytes,
+                audio_bytes,
+                sample_rate,
+                language,
+                session_id,
+            )
+        except Exception as exc:
+            logger.exception("流式 ASR 识别失败")
+            await websocket.send(json.dumps({"type": "error", "session_id": session_id, "error": str(exc)}, ensure_ascii=False))
+            return
+        sequence += 1
+        payload = {
+            "type": "final" if is_final else "segment",
+            "session_id": session_id,
+            "call_id": call_id,
+            "sequence": sequence,
+            "text": result.get("text", ""),
+            "language": result.get("language", language),
+            "is_final": is_final,
+        }
+        await websocket.send(json.dumps(payload, ensure_ascii=False))
+
+    async for message in websocket:
+        if isinstance(message, bytes):
+            buffer.extend(message)
+            while len(buffer) >= segment_bytes:
+                chunk = bytes(buffer[:segment_bytes])
+                del buffer[:segment_bytes]
+                await transcribe_segment(chunk, is_final=False)
+            if buffer and pcm_s16le_should_flush_on_silence(bytes(buffer), sample_rate, options.silence_ms):
+                await transcribe_segment(bytes(buffer), is_final=False)
+                buffer = bytearray()
+            continue
+
+        try:
+            payload = json.loads(message)
+        except json.JSONDecodeError:
+            await websocket.send(json.dumps({"type": "error", "session_id": session_id, "error": "invalid JSON frame"}, ensure_ascii=False))
+            continue
+        if payload.get("type") == "stop":
+            await transcribe_segment(bytes(buffer), is_final=True)
+            buffer = bytearray()
+            break
+
+
+def start_asr_websocket_server(runtime: WebRecognitionRuntime, options: WebServerOptions, stream_options: StreamRecognitionOptions) -> threading.Thread:
+    """在后台线程启动本机 ASR WebSocket 服务。"""
+
+    def runner():
+        try:
+            from websockets.legacy.server import serve
+        except ModuleNotFoundError:
+            logger.warning("未安装 websockets，实时 ASR WebSocket 服务未启动")
+            return
+
+        async def main_async():
+            async with serve(
+                lambda websocket, path: handle_asr_pcm_websocket(websocket, path, runtime, stream_options),
+                options.asr_ws_host,
+                options.asr_ws_port,
+                max_size=None,
+            ):
+                logger.info("实时 ASR WebSocket 服务启动: ws://%s:%s/ws/asr/pcm", options.asr_ws_host, options.asr_ws_port)
+                await asyncio.Future()
+
+        asyncio.run(main_async())
+
+    thread = threading.Thread(target=runner, name="voiceinput-asr-websocket", daemon=True)
+    thread.start()
+    return thread
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     """构建命令行参数。"""
     parser = argparse.ArgumentParser(description="启动本地网页语音识别服务")
     parser.add_argument("--host", default=None, help="监听地址，默认读取配置或使用 127.0.0.1")
     parser.add_argument("--port", default=None, type=int, help="监听端口，默认读取配置或使用 8765")
+    parser.add_argument("--asr-ws-host", default=None, help="实时 ASR WebSocket 监听地址，默认读取配置或使用 127.0.0.1")
+    parser.add_argument("--asr-ws-port", default=None, type=int, help="实时 ASR WebSocket 监听端口，默认读取配置或使用 8766")
     parser.add_argument("--workers", default=None, type=int, help="识别 worker 数量，默认读取配置或使用 1")
     parser.add_argument(
         "--daemon",
@@ -1705,6 +1933,7 @@ def main():
     args = build_arg_parser().parse_args()
     config, _config_path, _used_example_config, _runtime_root = load_runtime_config(SOURCE_ROOT)
     web_options = resolve_web_server_options(config, args)
+    stream_options = resolve_stream_recognition_options(config)
     pid_file = resolve_service_path(SOURCE_ROOT, args.pid_file, "logs/voice-web.pid")
     stdout_file = resolve_service_path(SOURCE_ROOT, args.stdout_file, "logs/voice-web.stdout.log")
     stderr_file = resolve_service_path(SOURCE_ROOT, args.stderr_file, "logs/voice-web.stderr.log")
@@ -1718,6 +1947,7 @@ def main():
         )
 
     runtime = WebRecognitionRuntime(SOURCE_ROOT, worker_count=web_options.workers)
+    start_asr_websocket_server(runtime, web_options, stream_options)
     VoiceWebRequestHandler.runtime = runtime
     server = ThreadingHTTPServer((web_options.host, web_options.port), VoiceWebRequestHandler)
     logger.info("网页语音服务启动: http://%s:%s (workers=%s)", web_options.host, web_options.port, runtime.worker_count)

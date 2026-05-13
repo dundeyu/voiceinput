@@ -14,8 +14,11 @@ from web_app import (
     build_admin_login_html,
     build_arg_parser,
     build_web_page_html,
+    decode_pcm_s16le_bytes,
     decode_wav_bytes,
     get_lan_addresses,
+    pcm_s16le_should_flush_on_silence,
+    resolve_stream_recognition_options,
     resolve_web_server_options,
     resolve_service_path,
 )
@@ -82,6 +85,56 @@ def test_decode_wav_bytes_reads_audio_and_sample_rate():
 
     assert sample_rate == 16000
     assert len(audio_data) == len(original)
+
+
+def test_decode_pcm_s16le_bytes_reads_float_audio():
+    raw = np.array([0, 16384, -16384], dtype="<i2").tobytes()
+
+    audio_data = decode_pcm_s16le_bytes(raw)
+
+    assert audio_data.dtype == np.float32
+    assert np.allclose(audio_data, np.array([0.0, 0.5, -0.5], dtype=np.float32))
+
+
+def test_pcm_s16le_should_flush_on_silence_after_voice():
+    voiced = np.full(4000, 3000, dtype="<i2")
+    silence = np.zeros(1600, dtype="<i2")
+
+    assert pcm_s16le_should_flush_on_silence((voiced.tobytes() + silence.tobytes()), 8000, 200)
+
+
+def test_pcm_s16le_should_not_flush_pure_silence():
+    silence = np.zeros(5600, dtype="<i2")
+
+    assert not pcm_s16le_should_flush_on_silence(silence.tobytes(), 8000, 200)
+
+
+def test_resolve_web_server_options_includes_asr_websocket():
+    args = build_arg_parser().parse_args([])
+    options = resolve_web_server_options(
+        {
+            "web": {
+                "host": "127.0.0.1",
+                "port": 8765,
+                "asr_ws_host": "127.0.0.1",
+                "asr_ws_port": 8766,
+                "workers": 2,
+                "daemon": False,
+            }
+        },
+        args,
+    )
+
+    assert options.asr_ws_host == "127.0.0.1"
+    assert options.asr_ws_port == 8766
+    assert options.workers == 2
+
+
+def test_resolve_stream_recognition_options_defaults_and_bounds():
+    options = resolve_stream_recognition_options({"stream": {"segment_seconds": 0.2, "silence_ms": -1}})
+
+    assert options.segment_seconds == 1.0
+    assert options.silence_ms == 0
 
 
 def test_web_runtime_transcribe_wav_bytes_uses_serialized_pipeline(tmp_path):
@@ -694,7 +747,7 @@ def test_resolve_web_server_options_prefers_config_defaults():
 
     resolved = resolve_web_server_options(config, args)
 
-    assert resolved == WebServerOptions(host="0.0.0.0", port=9988, workers=3, daemon=True)
+    assert resolved == WebServerOptions(host="0.0.0.0", port=9988, asr_ws_host="127.0.0.1", asr_ws_port=8766, workers=3, daemon=True)
 
 
 def test_resolve_web_server_options_allows_cli_override():
@@ -707,11 +760,11 @@ def test_resolve_web_server_options_allows_cli_override():
         }
     }
     parser = build_arg_parser()
-    args = parser.parse_args(["--host", "127.0.0.1", "--port", "8765", "--workers", "1", "--daemon"])
+    args = parser.parse_args(["--host", "127.0.0.1", "--port", "8765", "--asr-ws-host", "0.0.0.0", "--asr-ws-port", "9002", "--workers", "1", "--daemon"])
 
     resolved = resolve_web_server_options(config, args)
 
-    assert resolved == WebServerOptions(host="127.0.0.1", port=8765, workers=1, daemon=True)
+    assert resolved == WebServerOptions(host="127.0.0.1", port=8765, asr_ws_host="0.0.0.0", asr_ws_port=9002, workers=1, daemon=True)
 
 
 def test_get_lan_addresses_filters_loopback(monkeypatch):
